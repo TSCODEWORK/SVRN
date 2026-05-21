@@ -1,0 +1,10 @@
+# SVRN Python dependencies
+# Install with: pip install -r requirements.txt
+
+# ZIM file reading (offline library engine)
+libzim>=3.4.0
+
+# macOS menu bar app
+rumps>=0.4.0
+
+# No other runtime dependencies — everything else uses Python stdlib

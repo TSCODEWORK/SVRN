@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVRN · Data Tools</title>
+<style>
+:root {
+  --bg:#f0f0ee; --bg2:#fff; --bg3:#e8e8e5; --border:#d4d4d0;
+  --text:#3a3a3c; --dim:#8e8e93; --hi:#1c1c1e; --accent:#2f6fd4;
+  --green:#16a34a; --red:#dc2626; --amber:#d97706;
+  --font:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;
+  --mono:'JetBrains Mono','SF Mono','Fira Code',Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;}
+
+/* ── Header ── */
+header{
+  height:48px;display:flex;align-items:center;gap:14px;padding:0 20px;
+  background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);z-index:10;
+}
+.back{color:var(--dim);text-decoration:none;font-size:13px;}
+.back:hover{color:var(--hi);}
+.page-title{font-size:15px;font-weight:700;letter-spacing:.08em;color:var(--hi);}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:12px;}
+.auto-toggle{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--dim);cursor:pointer;}
+.toggle{position:relative;width:38px;height:22px;display:inline-block;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;inset:0;background:var(--bg3);border:1px solid var(--border);
+  border-radius:11px;cursor:pointer;transition:background .2s,border-color .2s;}
+.toggle-slider:before{content:'';position:absolute;height:16px;width:16px;left:2px;top:2px;
+  background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);}
+.toggle input:checked + .toggle-slider{background:var(--accent);border-color:var(--accent);}
+.toggle input:checked + .toggle-slider:before{transform:translateX(16px);}
+.hdr-divider{width:1px;height:20px;background:var(--border);}
+
+/* model select in header */
+.model-wrap{display:flex;align-items:center;gap:6px;}
+.model-lbl{font-size:12px;color:var(--dim);}
+select.model-select{
+  font-family:var(--font);font-size:12px;font-weight:500;
+  background:var(--bg3);color:var(--hi);border:1px solid var(--border);
+  border-radius:6px;padding:4px 8px;cursor:pointer;outline:none;
+}
+
+/* ── Layout ── */
+.workspace{display:flex;height:calc(100vh - 48px);overflow:hidden;}
+
+/* ── Sidebar ── */
+.sidebar{
+  width:200px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.sidebar-search{padding:9px 10px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.sidebar-search input{
+  width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:7px;
+  padding:6px 10px 6px 28px;font-family:var(--font);font-size:12px;color:var(--hi);
+  outline:none;transition:border-color .15s;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' fill='none' stroke='%238e8e93' stroke-width='2'%3E%3Ccircle cx='5.5' cy='5.5' r='4.5'/%3E%3Cpath d='m10 10-2-2'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:9px center;
+}
+.sidebar-search input:focus{border-color:var(--accent);}
+.op-list{flex:1;overflow-y:auto;padding:4px 0;}
+.op-group-hdr{
+  font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--dim);padding:8px 12px 3px;cursor:pointer;display:flex;align-items:center;
+  justify-content:space-between;user-select:none;
+}
+.op-group-hdr:hover{color:var(--hi);}
+.op-group-arrow{transition:transform .15s;font-size:9px;opacity:.4;}
+.op-group.collapsed .op-group-arrow{transform:rotate(-90deg);}
+.op-group.collapsed .op-group-body{display:none;}
+.op-btn{
+  display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;
+  padding:7px 12px 7px 16px;font-family:var(--font);font-size:12.5px;color:var(--dim);
+  cursor:pointer;text-align:left;transition:color .1s,background .1s;
+  border-left:2px solid transparent;
+}
+.op-btn:hover{color:var(--hi);background:var(--bg3);}
+.op-btn.active{color:var(--accent);background:rgba(47,111,212,.07);border-left-color:var(--accent);font-weight:600;}
+.op-btn-icon{font-size:14px;flex-shrink:0;width:16px;text-align:center;}
+
+/* ── IO pane ── */
+.io-pane{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;border-right:1px solid var(--border);}
+
+.op-bar{
+  padding:9px 16px;background:var(--bg2);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;flex-shrink:0;
+}
+.op-bar-name{font-size:14px;font-weight:700;color:var(--hi);white-space:nowrap;}
+.op-bar-desc{font-size:12px;color:var(--dim);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.op-bar-tip{font-size:11px;color:var(--accent);background:rgba(47,111,212,.08);
+  border:1px solid rgba(47,111,212,.2);border-radius:4px;padding:2px 8px;white-space:nowrap;}
+
+.io-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.io-panel{display:flex;flex-direction:column;flex:1;min-height:0;}
+.io-label{
+  display:flex;align-items:center;gap:8px;padding:6px 14px;
+  background:var(--bg3);border-bottom:1px solid var(--border);
+  font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--dim);
+  text-transform:uppercase;flex-shrink:0;
+}
+.io-label-actions{margin-left:auto;display:flex;gap:5px;}
+.io-btn{
+  font-family:var(--font);font-size:11px;font-weight:500;
+  padding:3px 9px;border-radius:5px;border:1px solid var(--border);
+  background:var(--bg2);color:var(--dim);cursor:pointer;transition:all .12s;
+}
+.io-btn:hover{background:var(--border);color:var(--hi);}
+.io-btn.success{background:var(--green);color:#fff;border-color:var(--green);}
+textarea.io-text{
+  flex:1;resize:none;border:none;outline:none;padding:12px 16px;
+  font-family:var(--mono);font-size:12.5px;line-height:1.7;
+  background:var(--bg);color:var(--text);
+}
+textarea.io-text::placeholder{color:var(--dim);}
+textarea.io-text:focus{background:var(--bg2);}
+textarea.output-text{background:#fafaf8;color:var(--hi);}
+
+.transform-bar{
+  flex-shrink:0;background:var(--bg2);border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);padding:8px 14px;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+}
+.transform-label{font-size:10px;font-weight:700;letter-spacing:.08em;
+  color:var(--dim);text-transform:uppercase;white-space:nowrap;}
+.opt-group{display:flex;align-items:center;gap:5px;}
+.opt-label{font-size:11px;color:var(--dim);}
+.opt-input{
+  font-family:var(--mono);font-size:12px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:5px;padding:4px 8px;
+  color:var(--hi);outline:none;max-width:180px;
+}
+.opt-input:focus{border-color:var(--accent);}
+.opt-select{
+  font-family:var(--font);font-size:12px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:5px;padding:4px 8px;
+  color:var(--hi);outline:none;cursor:pointer;
+}
+.transform-actions{margin-left:auto;display:flex;gap:6px;flex-shrink:0;}
+.apply-btn{
+  font-family:var(--font);font-size:12px;font-weight:700;
+  padding:6px 18px;border-radius:7px;border:none;cursor:pointer;
+  background:var(--accent);color:#fff;transition:opacity .15s;
+}
+.apply-btn:hover{opacity:.88;}
+.swap-btn{
+  font-family:var(--font);font-size:12px;font-weight:500;
+  padding:6px 12px;border-radius:7px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text);cursor:pointer;
+}
+.swap-btn:hover{background:var(--border);}
+.stats-bar{
+  flex-shrink:0;padding:4px 14px;background:var(--bg2);border-top:1px solid var(--border);
+  display:flex;gap:16px;align-items:center;
+}
+.stat{font-size:11px;color:var(--dim);font-family:var(--mono);}
+.stat span{color:var(--hi);font-weight:600;}
+.error-msg{font-size:11px;color:var(--red);}
+
+/* Empty state (inside io-pane) */
+.empty-state{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:12px;color:var(--dim);padding:32px 24px;
+  text-align:center;
+}
+.empty-icon{font-size:36px;opacity:.25;}
+.empty-title{font-size:16px;font-weight:700;color:var(--hi);}
+.empty-desc{font-size:12px;line-height:1.7;max-width:320px;}
+.quick-ops{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:6px;}
+.quick-op{
+  font-size:11.5px;padding:5px 11px;border-radius:6px;border:1px solid var(--border);
+  background:var(--bg2);color:var(--text);cursor:pointer;transition:border-color .12s,color .12s;
+  font-family:var(--font);
+}
+.quick-op:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ── Chat pane ── */
+.chat-pane{
+  width:340px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;
+  background:var(--bg2);
+}
+.chat-hdr{
+  padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;
+  display:flex;align-items:center;gap:8px;
+}
+.chat-hdr-title{font-size:13px;font-weight:700;color:var(--hi);flex:1;}
+.chat-status{width:7px;height:7px;border-radius:50%;background:var(--border);}
+.chat-status.online{background:var(--green);}
+.btn-xs{
+  font-family:var(--font);font-size:11px;padding:3px 8px;border-radius:5px;
+  border:1px solid var(--border);background:var(--bg3);color:var(--dim);cursor:pointer;
+}
+.btn-xs:hover{color:var(--hi);background:var(--border);}
+
+.chat-msgs{
+  flex:1;overflow-y:auto;padding:12px;
+  display:flex;flex-direction:column;gap:10px;
+}
+.chat-msgs::-webkit-scrollbar{width:3px;}
+.chat-msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+.cmsg{display:flex;gap:8px;align-items:flex-start;}
+.cmsg.user{flex-direction:row-reverse;}
+.cavatar{
+  width:26px;height:26px;border-radius:7px;flex-shrink:0;font-size:12px;
+  display:flex;align-items:center;justify-content:center;font-weight:700;
+}
+.cmsg.user .cavatar{background:var(--accent);color:#fff;}
+.cmsg.ai .cavatar{background:var(--bg3);border:1px solid var(--border);}
+.cbubble{
+  max-width:calc(100% - 38px);padding:8px 11px;border-radius:9px;
+  font-size:12.5px;line-height:1.6;
+}
+.cmsg.user .cbubble{background:var(--accent);color:#fff;border-radius:9px 2px 9px 9px;}
+.cmsg.ai .cbubble{
+  background:var(--bg3);border:1px solid var(--border);
+  color:var(--text);border-radius:2px 9px 9px 9px;
+}
+.cbubble p{margin:4px 0;}
+.cbubble p:first-child{margin-top:0;}
+.cbubble p:last-child{margin-bottom:0;}
+.cbubble code{
+  font-family:var(--mono);font-size:11px;background:rgba(0,0,0,.06);
+  padding:1px 4px;border-radius:3px;
+}
+.cmsg.user .cbubble code{background:rgba(255,255,255,.2);}
+.cbubble strong{color:var(--hi);font-weight:600;}
+.cmsg.user .cbubble strong{color:#fff;}
+
+/* USE button inside AI bubble */
+.use-op-btn{
+  display:inline-flex;align-items:center;gap:5px;
+  font-family:var(--font);font-size:12px;font-weight:600;
+  padding:4px 10px;border-radius:6px;border:1px solid var(--accent);
+  background:rgba(47,111,212,.1);color:var(--accent);cursor:pointer;
+  margin:3px 0;transition:background .12s;
+}
+.use-op-btn:hover{background:var(--accent);color:#fff;}
+
+.typing-dots{display:flex;gap:4px;padding:4px 0;}
+.typing-dot{width:6px;height:6px;border-radius:50%;background:var(--dim);
+  animation:tdot .8s infinite;}
+.typing-dot:nth-child(2){animation-delay:.13s;}
+.typing-dot:nth-child(3){animation-delay:.26s;}
+@keyframes tdot{0%,60%,100%{opacity:.3;transform:scale(.8);}30%{opacity:1;transform:scale(1);}}
+
+/* Suggestion chips in chat */
+.chat-suggestions{display:flex;flex-direction:column;gap:5px;padding:4px 0;}
+.chat-sugg{
+  font-family:var(--font);font-size:11.5px;padding:6px 10px;border-radius:7px;
+  border:1px solid var(--border);background:var(--bg2);color:var(--text);
+  cursor:pointer;text-align:left;transition:border-color .12s;
+}
+.chat-sugg:hover{border-color:var(--accent);color:var(--accent);}
+
+.chat-input-area{
+  padding:10px 12px;border-top:1px solid var(--border);flex-shrink:0;
+}
+.chat-input-wrap{
+  display:flex;gap:6px;align-items:flex-end;
+  background:var(--bg3);border:1px solid var(--border);border-radius:9px;
+  padding:6px 6px 6px 11px;transition:border-color .15s;
+}
+.chat-input-wrap:focus-within{border-color:var(--accent);}
+.chat-textarea{
+  flex:1;font-family:var(--font);font-size:13px;
+  background:transparent;border:none;outline:none;color:var(--hi);
+  resize:none;max-height:120px;line-height:1.5;
+}
+.chat-textarea::placeholder{color:var(--dim);}
+.send-btn{
+  width:30px;height:30px;border-radius:7px;border:none;flex-shrink:0;
+  background:var(--accent);color:#fff;cursor:pointer;font-size:14px;
+  display:flex;align-items:center;justify-content:center;transition:opacity .12s;
+}
+.send-btn:hover{opacity:.85;}
+.send-btn:disabled{opacity:.3;cursor:default;}
+.chat-hint{font-size:10.5px;color:var(--dim);margin-top:5px;text-align:center;}
+</style>
+</head>
+<body>
+
+<header>
+  <a class="back" href="/">← Dashboard</a>
+  <div class="page-title">DATA TOOLS</div>
+  <div class="hdr-right">
+    <div class="model-wrap">
+      <span class="model-lbl">AI Model</span>
+      <select class="model-select" id="model-select"><option value="">Loading…</option></select>
+    </div>
+    <div class="hdr-divider"></div>
+    <label class="auto-toggle">
+      Auto-apply
+      <label class="toggle">
+        <input type="checkbox" id="auto-toggle" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </label>
+  </div>
+</header>
+
+<div class="workspace">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-search">
+      <input type="search" id="op-search" placeholder="Search operations…">
+    </div>
+    <div class="op-list" id="op-list"></div>
+  </div>
+
+  <!-- IO pane -->
+  <div class="io-pane">
+
+    <!-- Empty state -->
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">🔧</div>
+      <div class="empty-title">Pick an operation</div>
+      <div class="empty-desc">Choose from the sidebar, click a shortcut below, or <strong>ask the AI</strong> what you're trying to do →</div>
+      <div class="quick-ops" id="quick-ops"></div>
+    </div>
+
+    <!-- Active workspace -->
+    <div id="workspace" style="display:none;flex-direction:column;height:100%;overflow:hidden;">
+      <div class="op-bar">
+        <div class="op-bar-name" id="op-bar-name">—</div>
+        <div class="op-bar-desc" id="op-bar-desc"></div>
+        <div class="op-bar-tip" id="op-bar-tip" style="display:none"></div>
+      </div>
+      <div class="io-wrap">
+        <div class="io-panel">
+          <div class="io-label">
+            📥 Input
+            <div class="io-label-actions">
+              <button class="io-btn" id="paste-btn">Paste</button>
+              <button class="io-btn" id="clear-btn">Clear</button>
+              <button class="io-btn" id="load-btn">Open File…</button>
+            </div>
+          </div>
+          <textarea class="io-text" id="input-text" placeholder="Paste or type your input here…"></textarea>
+        </div>
+
+        <div class="transform-bar">
+          <div class="transform-label">Transform</div>
+          <div class="opt-group" id="opts-container"></div>
+          <div class="transform-actions">
+            <button class="swap-btn" id="swap-btn">⇅ Swap</button>
+            <button class="apply-btn" id="apply-btn">▶ Apply</button>
+          </div>
+        </div>
+
+        <div class="io-panel">
+          <div class="io-label">
+            📤 Output
+            <div class="io-label-actions">
+              <button class="io-btn" id="copy-btn">Copy</button>
+              <button class="io-btn" id="use-input-btn">→ Use as Input</button>
+              <button class="io-btn" id="save-btn">Save File…</button>
+            </div>
+          </div>
+          <textarea class="io-text output-text" id="output-text" readonly placeholder="Result appears here…"></textarea>
+        </div>
+
+        <div class="stats-bar">
+          <div class="stat">In: <span id="stat-in">0</span></div>
+          <div class="stat">Out: <span id="stat-out">0</span></div>
+          <div class="stat">Lines: <span id="stat-lines">0</span></div>
+          <div class="error-msg" id="stat-error" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Chat pane -->
+  <div class="chat-pane">
+    <div class="chat-hdr">
+      <div class="chat-status" id="chat-status"></div>
+      <div class="chat-hdr-title">AI Assistant</div>
+      <button class="btn-xs" id="clear-chat-btn">Clear</button>
+    </div>
+
+    <div class="chat-msgs" id="chat-msgs">
+      <!-- intro message injected by JS -->
+    </div>
+
+    <div class="chat-input-area">
+      <div class="chat-input-wrap">
+        <textarea class="chat-textarea" id="chat-input"
+          placeholder="Describe what you want to do…" rows="1"></textarea>
+        <button class="send-btn" id="send-btn">↑</button>
+      </div>
+      <div class="chat-hint">↵ send · shift+↵ newline</div>
+    </div>
+  </div>
+
+</div>
+
+<input type="file" id="file-input" style="display:none">
+
+<script>
+/* ═══════════════════════════════════════════════════
+   OPERATIONS REGISTRY
+═══════════════════════════════════════════════════ */
+const OPS = {
+  'Base64 Encode':   { group:'Encode / Decode',    icon:'📦', quick:true,  desc:'Wrap data as Base64 — safe for email, URLs, or storing binary as text.', tip:'~33% larger than original. Commonly used in APIs and config files.',
+    run: t => btoa(encodeURIComponent(t).replace(/%([0-9A-F]{2})/g,(_,p)=>String.fromCharCode('0x'+p))) },
+  'Base64 Decode':   { group:'Encode / Decode',    icon:'📤', quick:true,  desc:'Reveal the original content hidden inside a Base64 string.',
+    run: t => { try { return decodeURIComponent(Array.prototype.map.call(atob(t.trim()),c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join('')); } catch { throw new Error('Invalid Base64 — check for spaces or line breaks.'); } } },
+  'URL Encode':      { group:'Encode / Decode',    icon:'🌐',               desc:'Make text safe inside a web address (converts spaces, symbols, etc.).',
+    run: t => encodeURIComponent(t) },
+  'URL Decode':      { group:'Encode / Decode',    icon:'🔗', quick:true,  desc:'Convert a URL-encoded string back to human-readable text.',
+    run: t => { try { return decodeURIComponent(t); } catch { throw new Error('Invalid URL encoding.'); } } },
+  'HTML Encode':     { group:'Encode / Decode',    icon:'🏷️',               desc:'Escape special characters so text displays safely inside HTML.',
+    run: t => t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;') },
+  'HTML Decode':     { group:'Encode / Decode',    icon:'📄', quick:true,  desc:'Convert HTML entities (&amp; &lt; etc.) back to normal characters.',
+    run: t => t.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'") },
+  'Hex Encode':      { group:'Encode / Decode',    icon:'🔢',               desc:'Convert text to hexadecimal — each character becomes its hex code.',
+    opts:[{type:'select',key:'sep',label:'Separator',options:['space','none','colon','comma'],default:'space'}],
+    run: (t,o) => { const seps={space:' ',none:'',colon:':',comma:','}; return Array.from(t).map(c=>c.charCodeAt(0).toString(16).padStart(2,'0')).join(seps[o.sep||'space']); } },
+  'Hex Decode':      { group:'Encode / Decode',    icon:'🔣', quick:true,  desc:'Convert hex codes back to the original text.',
+    run: t => { const h=t.replace(/[\s:,]/g,''); if(h.length%2!==0) throw new Error('Must be even number of hex chars.'); return Array.from({length:h.length/2},(_,i)=>String.fromCharCode(parseInt(h.slice(i*2,i*2+2),16))).join(''); } },
+  'Binary Encode':   { group:'Encode / Decode',    icon:'0️⃣',               desc:'Convert text to binary (0s and 1s). Each character = 8 bits.',
+    run: t => Array.from(t).map(c=>c.charCodeAt(0).toString(2).padStart(8,'0')).join(' ') },
+  'Binary Decode':   { group:'Encode / Decode',    icon:'1️⃣',               desc:'Convert binary (0s and 1s) back to readable text.',
+    run: t => { const b=t.replace(/\s+/g,''); if(!/^[01]+$/.test(b)||b.length%8!==0) throw new Error('Must be 0s and 1s in groups of 8.'); return Array.from({length:b.length/8},(_,i)=>String.fromCharCode(parseInt(b.slice(i*8,i*8+8),2))).join(''); } },
+
+  'SHA-256 Hash':    { group:'Hash & Fingerprint', icon:'🔒', quick:true,  async:true, desc:'Generate a SHA-256 fingerprint. Use to verify file integrity or store passwords.', tip:'If even one character changes, the entire hash changes.',
+    opts:[{type:'select',key:'fmt',label:'Format',options:['hex','Base64'],default:'hex'}],
+    run: async (t,o) => { const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t)); const a=new Uint8Array(b); return (o.fmt||'hex')==='Base64'?btoa(String.fromCharCode(...a)):Array.from(a).map(b=>b.toString(16).padStart(2,'0')).join(''); } },
+  'SHA-512 Hash':    { group:'Hash & Fingerprint', icon:'🔐',               async:true, desc:'A 512-bit fingerprint — longer and stronger than SHA-256.',
+    opts:[{type:'select',key:'fmt',label:'Format',options:['hex','Base64'],default:'hex'}],
+    run: async (t,o) => { const b=await crypto.subtle.digest('SHA-512',new TextEncoder().encode(t)); const a=new Uint8Array(b); return (o.fmt||'hex')==='Base64'?btoa(String.fromCharCode(...a)):Array.from(a).map(b=>b.toString(16).padStart(2,'0')).join(''); } },
+  'SHA-1 Hash':      { group:'Hash & Fingerprint', icon:'🗝️',               async:true, desc:"Older hash algorithm. Fine for checksums, don't use for passwords.",
+    run: async t => { const b=await crypto.subtle.digest('SHA-1',new TextEncoder().encode(t)); return Array.from(new Uint8Array(b)).map(b=>b.toString(16).padStart(2,'0')).join(''); } },
+  'HMAC-SHA256':     { group:'Hash & Fingerprint', icon:'🛡️',               async:true, desc:'Keyed hash — proves a message came from someone with the secret key.',
+    opts:[{type:'text',key:'key',label:'Secret Key',placeholder:'Enter your secret key'}],
+    run: async (t,o) => { if(!o.key) throw new Error('A secret key is required.'); const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(o.key),{name:'HMAC',hash:'SHA-256'},false,['sign']); const s=await crypto.subtle.sign('HMAC',km,new TextEncoder().encode(t)); return Array.from(new Uint8Array(s)).map(b=>b.toString(16).padStart(2,'0')).join(''); } },
+
+  'JSON Pretty Print':{ group:'Format & Clean',   icon:'📋', quick:true,  desc:'Make compact or messy JSON readable by adding indentation and line breaks.',
+    opts:[{type:'number',key:'indent',label:'Indent',default:2,min:1,max:8}],
+    run: (t,o) => { try { return JSON.stringify(JSON.parse(t),null,parseInt(o.indent)||2); } catch(e) { throw new Error('Invalid JSON: '+e.message); } } },
+  'JSON Minify':     { group:'Format & Clean',    icon:'📉',               desc:'Strip all whitespace from JSON to make it as compact as possible.',
+    run: t => { try { return JSON.stringify(JSON.parse(t)); } catch(e) { throw new Error('Invalid JSON: '+e.message); } } },
+  'JSON → CSV':      { group:'Format & Clean',    icon:'📊', quick:true,  desc:'Convert a JSON array of objects into a CSV spreadsheet.',
+    run: t => { let d; try{d=JSON.parse(t);}catch(e){throw new Error('Invalid JSON: '+e.message);} if(!Array.isArray(d)||!d.length) throw new Error('Input must be a JSON array of objects.'); const k=Object.keys(d[0]); return [k.join(','),...d.map(r=>k.map(k=>JSON.stringify(r[k]??'')).join(','))].join('\n'); } },
+  'Sort Lines':      { group:'Format & Clean',    icon:'🔤', quick:true,  desc:'Sort each line of text alphabetically.',
+    opts:[{type:'select',key:'dir',label:'Order',options:['A → Z','Z → A'],default:'A → Z'},{type:'checkbox',key:'ci',label:'Case-insensitive',default:true}],
+    run: (t,o) => { const l=t.split('\n'); l.sort((a,b)=>{const x=o.ci?a.toLowerCase():a,y=o.ci?b.toLowerCase():b; return o.dir==='Z → A'?y.localeCompare(x):x.localeCompare(y);}); return l.join('\n'); } },
+  'Remove Duplicates':{ group:'Format & Clean',   icon:'🗑️', quick:true,  desc:'Keep only one copy of each repeated line.',
+    opts:[{type:'checkbox',key:'ci',label:'Case-insensitive',default:false}],
+    run: (t,o) => { const s=new Set(); return t.split('\n').filter(l=>{const k=o.ci?l.toLowerCase():l; if(s.has(k))return false; s.add(k);return true;}).join('\n'); } },
+  'Remove Empty Lines':{ group:'Format & Clean',  icon:'✂️',               desc:'Delete all blank lines from your text.',
+    run: t => t.split('\n').filter(l=>l.trim()).join('\n') },
+  'Trim Whitespace': { group:'Format & Clean',    icon:'🧹',               desc:'Remove leading and trailing spaces from each line.',
+    opts:[{type:'select',key:'mode',label:'Apply to',options:['each line','whole text'],default:'each line'}],
+    run: (t,o) => o.mode==='whole text'?t.trim():t.split('\n').map(l=>l.trim()).join('\n') },
+
+  'Uppercase':       { group:'Text Operations',   icon:'🔠',               desc:'Convert all letters to UPPERCASE.',       run: t => t.toUpperCase() },
+  'Lowercase':       { group:'Text Operations',   icon:'🔡',               desc:'Convert all letters to lowercase.',       run: t => t.toLowerCase() },
+  'Title Case':      { group:'Text Operations',   icon:'📝',               desc:'Capitalize The First Letter Of Every Word.', run: t => t.replace(/\w\S*/g,w=>w[0].toUpperCase()+w.slice(1).toLowerCase()) },
+  'Reverse Text':    { group:'Text Operations',   icon:'🔄',               desc:'Flip your text backwards — characters, lines, or words.',
+    opts:[{type:'select',key:'mode',label:'Reverse',options:['characters','lines','words'],default:'characters'}],
+    run: (t,o) => o.mode==='lines'?t.split('\n').reverse().join('\n'):o.mode==='words'?t.split(/(\s+)/).reverse().join(''):[...t].reverse().join('') },
+  'Find & Replace':  { group:'Text Operations',   icon:'🔍', quick:true,  desc:'Find and replace text — supports plain text or regular expressions.',
+    opts:[{type:'text',key:'find',label:'Find',placeholder:'text to find'},{type:'text',key:'replace',label:'Replace',placeholder:'replacement'},{type:'checkbox',key:'regex',label:'Regex',default:false},{type:'checkbox',key:'ci',label:'Ignore case',default:false}],
+    run: (t,o) => { if(!o.find) throw new Error('Enter something in the Find field.'); let p,f='g'+(o.ci?'i':''); try{p=o.regex?new RegExp(o.find,f):new RegExp(o.find.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),f);}catch(e){throw new Error('Invalid regex: '+e.message);} return t.replace(p,o.replace||''); } },
+  'Count & Analyze': { group:'Text Operations',   icon:'📊', quick:true,  desc:'Count words, characters, lines, and see character frequency.',
+    run: t => { const words=t.trim()?t.trim().split(/\s+/).length:0; const freq={}; for(const c of t.toLowerCase()) if(/[a-z]/.test(c)) freq[c]=(freq[c]||0)+1; const top=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([c,n])=>`${c}:${n}`).join('  '); return [`Lines:      ${t.split('\n').length}`,`Words:      ${words}`,`Characters: ${t.length} (${t.replace(/\s/g,'').length} without spaces)`,`Paragraphs: ${t.split(/\n\n+/).filter(p=>p.trim()).length}`,``,`Top letters: ${top||'none'}`].join('\n'); } },
+  'Extract Emails':  { group:'Text Operations',   icon:'📧',               desc:'Pull out all email addresses found in your text.',
+    run: t => { const m=t.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g)||[]; return [...new Set(m)].join('\n')||'(none found)'; } },
+  'Extract URLs':    { group:'Text Operations',   icon:'🌐',               desc:'Pull out all web addresses (http/https) found in your text.',
+    run: t => { const m=t.match(/https?:\/\/[^\s"'<>]+/g)||[]; return [...new Set(m)].join('\n')||'(none found)'; } },
+  'Extract IPs':     { group:'Text Operations',   icon:'📡',               desc:'Find all IP addresses (like 192.168.1.1) in your text.',
+    run: t => { const m=t.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g)||[]; return [...new Set(m)].join('\n')||'(none found)'; } },
+
+  'ROT13':           { group:'Simple Ciphers',    icon:'🔁', quick:true,  desc:'Rotate each letter 13 positions. Applying it twice decodes.',     tip:'ROT13 is its own inverse — run it again to undo.',
+    run: t => t.replace(/[a-zA-Z]/g,c=>{const b=c<='Z'?65:97;return String.fromCharCode(((c.charCodeAt(0)-b+13)%26)+b);}) },
+  'Caesar Cipher':   { group:'Simple Ciphers',    icon:'🏛️',               desc:'Shift each letter forward or backward by a set number of positions.',
+    opts:[{type:'number',key:'shift',label:'Shift',default:3,min:1,max:25},{type:'select',key:'dir',label:'Direction',options:['Encode (→)','Decode (←)'],default:'Encode (→)'}],
+    run: (t,o) => { const s=((parseInt(o.shift)||3)%26)*(o.dir==='Decode (←)'?-1:1); return t.replace(/[a-zA-Z]/g,c=>{const b=c<='Z'?65:97;return String.fromCharCode(((c.charCodeAt(0)-b+s+26)%26)+b);}); } },
+  'Atbash Cipher':   { group:'Simple Ciphers',    icon:'🔀',               desc:'Replace each letter with its mirror (A↔Z, B↔Y…). Works both ways.',
+    run: t => t.replace(/[a-zA-Z]/g,c=>{const b=c<='Z'?65:97;return String.fromCharCode(b+25-(c.charCodeAt(0)-b));}) },
+  'Morse Code':      { group:'Simple Ciphers',    icon:'📻',               desc:'Convert text to Morse code dots and dashes, or decode Morse back.',
+    opts:[{type:'select',key:'dir',label:'Direction',options:['Text → Morse','Morse → Text'],default:'Text → Morse'}],
+    run: (t,o) => { const M={A:'.-',B:'-...',C:'-.-.',D:'-..',E:'.',F:'..-.',G:'--.',H:'....',I:'..',J:'.---',K:'-.-',L:'.-..',M:'--',N:'-.',O:'---',P:'.--.',Q:'--.-',R:'.-.',S:'...',T:'-',U:'..-',V:'...-',W:'.--',X:'-..-',Y:'-.--',Z:'--..',0:'-----',1:'.----',2:'..---',3:'...--',4:'....-',5:'.....',6:'-....',7:'--...',8:'---..',9:'.----'}; const R=Object.fromEntries(Object.entries(M).map(([k,v])=>[v,k])); return o.dir==='Text → Morse'?t.toUpperCase().split('').map(c=>c===' '?'/':M[c]||'?').join(' '):t.split(' / ').map(w=>w.split(' ').map(s=>R[s]||'?').join('')).join(' '); } },
+
+  'AES-256 Encrypt': { group:'Strong Encryption', icon:'🔒',               async:true, desc:'Password-protect your data with AES-256. Only the right password unlocks it.', tip:'There is no way to recover data without the password.',
+    opts:[{type:'password',key:'pass',label:'Password',placeholder:'Strong password'},{type:'password',key:'pass2',label:'Confirm',placeholder:'Repeat password'}],
+    run: async (t,o) => { if(!o.pass) throw new Error('Password required.'); if(o.pass!==o.pass2) throw new Error('Passwords do not match.'); const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12)); const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(o.pass),'PBKDF2',false,['deriveKey']); const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:200000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt']); const enc=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(t)); const out=new Uint8Array(salt.byteLength+iv.byteLength+enc.byteLength); out.set(salt,0);out.set(iv,salt.byteLength);out.set(new Uint8Array(enc),salt.byteLength+iv.byteLength); return '🔒SVRN1:'+btoa(String.fromCharCode(...out)); } },
+  'AES-256 Decrypt': { group:'Strong Encryption', icon:'🔓',               async:true, desc:'Unlock AES-256 encrypted data using the correct password.',
+    opts:[{type:'password',key:'pass',label:'Password',placeholder:'Enter your password'}],
+    run: async (t,o) => { if(!o.pass) throw new Error('Password required.'); const pfx='🔒SVRN1:'; if(!t.trim().startsWith(pfx)) throw new Error('This does not look like SVRN-encrypted data.'); const raw=Uint8Array.from(atob(t.trim().slice(pfx.length)),c=>c.charCodeAt(0)); const salt=raw.slice(0,16),iv=raw.slice(16,28),data=raw.slice(28); const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(o.pass),'PBKDF2',false,['deriveKey']); const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:200000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['decrypt']); try{const dec=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,data);return new TextDecoder().decode(dec);}catch{throw new Error('Wrong password or corrupted data.');} } },
+};
+
+/* ═══════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════ */
+let activeOp   = null;
+let optValues  = {};
+let autoApply  = true;
+let debTimer   = null;
+let chatMsgs   = [];
+let streaming  = false;
+let streamCtrl = null;
+
+/* ═══════════════════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════════════════ */
+function buildSidebar(filter) {
+  filter = (filter||'').toLowerCase().trim();
+  const groups = {};
+  for (const [name, op] of Object.entries(OPS)) {
+    if (filter && !name.toLowerCase().includes(filter) && !op.group.toLowerCase().includes(filter) && !(op.desc||'').toLowerCase().includes(filter)) continue;
+    if (!groups[op.group]) groups[op.group] = [];
+    groups[op.group].push(name);
+  }
+  const list = document.getElementById('op-list');
+  list.innerHTML = '';
+  if (!Object.keys(groups).length) {
+    list.innerHTML = `<div style="padding:16px 12px;font-size:12px;color:var(--dim)">No match for "${filter}"</div>`;
+    return;
+  }
+  for (const [group, names] of Object.entries(groups)) {
+    const div = document.createElement('div');
+    div.className = 'op-group';
+    div.innerHTML = `<div class="op-group-hdr">${group}<span class="op-group-arrow">▾</span></div><div class="op-group-body"></div>`;
+    div.querySelector('.op-group-hdr').addEventListener('click', () => div.classList.toggle('collapsed'));
+    const body = div.querySelector('.op-group-body');
+    names.forEach(name => {
+      const btn = document.createElement('button');
+      btn.className = 'op-btn' + (name === activeOp ? ' active' : '');
+      btn.innerHTML = `<span class="op-btn-icon">${OPS[name].icon}</span><span>${name}</span>`;
+      btn.addEventListener('click', () => selectOp(name));
+      body.appendChild(btn);
+    });
+    list.appendChild(div);
+  }
+}
+
+function buildQuickOps() {
+  const c = document.getElementById('quick-ops');
+  c.innerHTML = '';
+  Object.entries(OPS).filter(([,op])=>op.quick).forEach(([name]) => {
+    const b = document.createElement('button');
+    b.className = 'quick-op';
+    b.textContent = OPS[name].icon + ' ' + name;
+    b.addEventListener('click', () => selectOp(name));
+    c.appendChild(b);
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   OPERATION SELECT
+═══════════════════════════════════════════════════ */
+function selectOp(name) {
+  if (!OPS[name]) return;
+  activeOp  = name;
+  optValues = {};
+  const op  = OPS[name];
+  (op.opts||[]).forEach(o => { optValues[o.key] = o.default !== undefined ? o.default : ''; });
+
+  document.getElementById('empty-state').style.display = 'none';
+  const ws = document.getElementById('workspace');
+  ws.style.display = 'flex';
+
+  document.getElementById('op-bar-name').textContent = op.icon + ' ' + name;
+  document.getElementById('op-bar-desc').textContent = op.desc;
+  const tipEl = document.getElementById('op-bar-tip');
+  if (op.tip) { tipEl.textContent = '💡 ' + op.tip; tipEl.style.display = 'inline-block'; }
+  else tipEl.style.display = 'none';
+
+  buildOpts(op.opts||[]);
+  buildSidebar(document.getElementById('op-search').value);
+  if (autoApply && document.getElementById('input-text').value.trim()) applyOp();
+}
+
+function buildOpts(opts) {
+  const c = document.getElementById('opts-container');
+  if (!opts.length) { c.innerHTML = '<span style="font-size:11px;color:var(--dim)">No options</span>'; return; }
+  c.innerHTML = opts.map(opt => {
+    const id = 'opt-' + opt.key;
+    if (opt.type === 'select')
+      return `<div class="opt-group"><label class="opt-label" for="${id}">${opt.label}:</label><select class="opt-select" id="${id}">${opt.options.map(o=>`<option value="${o}"${o===optValues[opt.key]?' selected':''}>${o}</option>`).join('')}</select></div>`;
+    if (opt.type === 'checkbox')
+      return `<div class="opt-group"><label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--dim)"><input type="checkbox" id="${id}"${optValues[opt.key]?' checked':''}>${opt.label}</label></div>`;
+    if (opt.type === 'number')
+      return `<div class="opt-group"><label class="opt-label" for="${id}">${opt.label}:</label><input type="number" class="opt-input" id="${id}" value="${optValues[opt.key]??opt.default}" min="${opt.min||0}" max="${opt.max||999}" style="width:62px"></div>`;
+    return `<div class="opt-group"><label class="opt-label" for="${id}">${opt.label}:</label><input type="${opt.type}" class="opt-input" id="${id}" value="${optValues[opt.key]||''}" placeholder="${opt.placeholder||''}"></div>`;
+  }).join('');
+
+  // Wire up change events
+  opts.forEach(opt => {
+    const el = document.getElementById('opt-' + opt.key);
+    if (!el) return;
+    const ev = opt.type === 'checkbox' ? 'change' : 'input';
+    el.addEventListener(ev, () => {
+      optValues[opt.key] = opt.type === 'checkbox' ? el.checked : (opt.type === 'number' ? +el.value : el.value);
+      if (autoApply) schedApply();
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   APPLY / RUN
+═══════════════════════════════════════════════════ */
+function schedApply() { clearTimeout(debTimer); debTimer = setTimeout(applyOp, 380); }
+
+async function applyOp() {
+  if (!activeOp) return;
+  const op  = OPS[activeOp];
+  const inp = document.getElementById('input-text').value;
+  if (!inp.trim()) { setOutput(''); clearErr(); return; }
+  const btn = document.getElementById('apply-btn');
+  btn.textContent = '⏳'; btn.disabled = true;
+  try {
+    const result = await Promise.resolve(op.run(inp, optValues));
+    setOutput(result); clearErr();
+  } catch(e) { setOutput(''); showErr(e.message); }
+  btn.textContent = '▶ Apply'; btn.disabled = false;
+}
+
+function setOutput(text) {
+  document.getElementById('output-text').value = text;
+  updateStats();
+}
+function updateStats() {
+  const i = document.getElementById('input-text').value;
+  const o = document.getElementById('output-text').value;
+  document.getElementById('stat-in').textContent   = i.length.toLocaleString();
+  document.getElementById('stat-out').textContent  = o.length.toLocaleString();
+  document.getElementById('stat-lines').textContent = o ? o.split('\n').length.toLocaleString() : '0';
+}
+function showErr(msg) { const e=document.getElementById('stat-error'); e.textContent='⚠ '+msg; e.style.display='block'; }
+function clearErr()   { document.getElementById('stat-error').style.display='none'; }
+
+/* ═══════════════════════════════════════════════════
+   I/O ACTIONS (wired via addEventListener)
+═══════════════════════════════════════════════════ */
+document.getElementById('input-text').addEventListener('input', () => { updateStats(); if(autoApply) schedApply(); });
+
+document.getElementById('paste-btn').addEventListener('click', async () => {
+  try { document.getElementById('input-text').value = await navigator.clipboard.readText(); updateStats(); if(autoApply) schedApply(); }
+  catch { alert('Clipboard denied — paste manually with ⌘V.'); }
+});
+document.getElementById('clear-btn').addEventListener('click', () => {
+  document.getElementById('input-text').value = '';
+  document.getElementById('output-text').value = '';
+  clearErr(); updateStats();
+});
+document.getElementById('load-btn').addEventListener('click', () => document.getElementById('file-input').click());
+document.getElementById('file-input').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => { document.getElementById('input-text').value = ev.target.result; updateStats(); if(autoApply) schedApply(); };
+  r.readAsText(f); e.target.value = '';
+});
+document.getElementById('copy-btn').addEventListener('click', async () => {
+  const t = document.getElementById('output-text').value; if (!t) return;
+  await navigator.clipboard.writeText(t);
+  const b = document.getElementById('copy-btn'); b.textContent='✓ Copied!'; b.className='io-btn success';
+  setTimeout(() => { b.textContent='Copy'; b.className='io-btn'; }, 1800);
+});
+document.getElementById('use-input-btn').addEventListener('click', () => {
+  const o = document.getElementById('output-text').value;
+  document.getElementById('input-text').value = o;
+  document.getElementById('output-text').value = '';
+  updateStats(); if(autoApply) schedApply();
+});
+document.getElementById('swap-btn').addEventListener('click', () => {
+  const i=document.getElementById('input-text'), o=document.getElementById('output-text');
+  [i.value, o.value] = [o.value, i.value];
+  updateStats(); if(autoApply) schedApply();
+});
+document.getElementById('apply-btn').addEventListener('click', applyOp);
+document.getElementById('save-btn').addEventListener('click', () => {
+  const t = document.getElementById('output-text').value; if (!t) { alert('Nothing to save.'); return; }
+  const ext = activeOp&&activeOp.includes('JSON')?'json':activeOp&&activeOp.includes('CSV')?'csv':'txt';
+  const name = (activeOp||'output').toLowerCase().replace(/\s+/g,'-')+'.'+ext;
+  const a = Object.assign(document.createElement('a'), {href:URL.createObjectURL(new Blob([t],{type:'text/plain'})), download:name});
+  a.click();
+});
+document.getElementById('auto-toggle').addEventListener('change', function() {
+  autoApply = this.checked; if (autoApply) schedApply();
+});
+document.getElementById('op-search').addEventListener('input', function() { buildSidebar(this.value); });
+
+/* ═══════════════════════════════════════════════════
+   AI CHAT
+═══════════════════════════════════════════════════ */
+async function loadModels() {
+  try {
+    const r = await fetch('http://localhost:11434/api/tags');
+    const d = await r.json();
+    const sel = document.getElementById('model-select');
+    const models = d.models || [];
+    if (!models.length) { sel.innerHTML='<option value="">No models installed</option>'; return; }
+    sel.innerHTML = models.map(m=>`<option value="${m.name}">${m.name.replace(':latest','')}</option>`).join('');
+    const saved = localStorage.getItem('datatools-model');
+    if (saved && models.find(m=>m.name===saved)) sel.value = saved;
+    sel.addEventListener('change', () => localStorage.setItem('datatools-model', sel.value));
+    document.getElementById('chat-status').className = 'chat-status online';
+  } catch {
+    document.getElementById('model-select').innerHTML='<option value="">Ollama offline</option>';
+  }
+}
+
+function getModel() { return document.getElementById('model-select').value; }
+
+function buildSystemPrompt() {
+  const opList = Object.entries(OPS).map(([name,op]) =>
+    `• ${name} (${op.group}): ${op.desc}`
+  ).join('\n');
+
+  return `You are a helpful AI assistant built into SVRN Data Tools — an offline data transformation tool.
+
+Your job is to help users figure out which operation to use and how to use it.
+
+Available operations:
+${opList}
+
+When recommending an operation, format it exactly like this so the user can click to activate it:
+→ [USE: Operation Name]
+
+For example: "You want **Base64 Encode**. → [USE: Base64 Encode]"
+
+Keep responses short and practical. If the user has data they want to process, ask clarifying questions. Don't list all operations unless asked — just recommend the right one.`;
+}
+
+function addChatMsg(role, html, isHtml) {
+  const msgs = document.getElementById('chat-msgs');
+  const div  = document.createElement('div');
+  div.className = `cmsg ${role}`;
+  div.innerHTML = `
+    <div class="cavatar">${role==='user' ? 'U' : '🤖'}</div>
+    <div class="cbubble">${isHtml ? html : escHtml(html).replace(/\n/g,'<br>')}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function addTyping() {
+  const msgs = document.getElementById('chat-msgs');
+  const div  = document.createElement('div');
+  div.className = 'cmsg ai';
+  div.innerHTML = `<div class="cavatar">🤖</div><div class="cbubble"><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderAIText(raw) {
+  // Convert markdown-ish formatting and parse [USE: Op] tags
+  let html = escHtml(raw);
+  // Bold: **text**
+  html = html.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  // Inline code: `code`
+  html = html.replace(/`([^`]+)`/g,'<code>$1</code>');
+  // USE buttons: → [USE: Op Name]
+  html = html.replace(/→\s*\[USE:\s*([^\]]+)\]/g, (_, name) => {
+    const trimmed = name.trim();
+    if (!OPS[trimmed]) return `<em>${trimmed}</em>`;
+    return `<button class="use-op-btn" data-op="${escHtml(trimmed)}">▶ Use: ${escHtml(trimmed)}</button>`;
+  });
+  // Line breaks
+  html = html.replace(/\n/g,'<br>');
+  return html;
+}
+
+// Event delegation for USE buttons in chat
+document.getElementById('chat-msgs').addEventListener('click', e => {
+  const btn = e.target.closest('.use-op-btn');
+  if (btn) selectOp(btn.dataset.op);
+  const sugg = e.target.closest('.chat-sugg');
+  if (sugg) { document.getElementById('chat-input').value = sugg.dataset.q; sendChat(); }
+});
+
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text  = input.value.trim();
+  if (!text || streaming) return;
+
+  const model = getModel();
+  if (!model) { addChatMsg('ai', 'Please select a model in the header first.', false); return; }
+
+  input.value = '';
+  autoResizeInput(input);
+  addChatMsg('user', text, false);
+  chatMsgs.push({ role:'user', content:text });
+
+  const typing = addTyping();
+  streaming = true;
+  document.getElementById('send-btn').disabled = true;
+
+  try {
+    streamCtrl = new AbortController();
+    const body = {
+      model,
+      messages: [{ role:'system', content:buildSystemPrompt() }, ...chatMsgs.slice(-12)],
+      stream: true,
+    };
+    const resp = await fetch('http://localhost:11434/api/chat', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body), signal: streamCtrl.signal,
+    });
+    if (!resp.ok) throw new Error('Ollama responded with ' + resp.status);
+
+    typing.remove();
+    let accumulated = '';
+    const aiEl = document.createElement('div');
+    aiEl.className = 'cmsg ai';
+    aiEl.innerHTML = `<div class="cavatar">🤖</div><div class="cbubble"></div>`;
+    document.getElementById('chat-msgs').appendChild(aiEl);
+    const bubble = aiEl.querySelector('.cbubble');
+
+    const reader = resp.body.getReader();
+    const dec    = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      for (const line of dec.decode(value).split('\n')) {
+        if (!line.trim()) continue;
+        try {
+          const j = JSON.parse(line);
+          if (j.message?.content) {
+            accumulated += j.message.content;
+            bubble.innerHTML = renderAIText(accumulated);
+            document.getElementById('chat-msgs').scrollTop = document.getElementById('chat-msgs').scrollHeight;
+          }
+        } catch {}
+      }
+    }
+    chatMsgs.push({ role:'assistant', content:accumulated });
+
+  } catch(e) {
+    typing?.remove();
+    if (e.name !== 'AbortError') {
+      addChatMsg('ai', `Couldn't reach Ollama. Make sure it's running (check Library Manager or run \`ollama serve\` in Terminal).`, false);
+    }
+  } finally {
+    streaming = false;
+    document.getElementById('send-btn').disabled = false;
+  }
+}
+
+function autoResizeInput(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+document.getElementById('chat-input').addEventListener('input', function() { autoResizeInput(this); });
+document.getElementById('chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+});
+document.getElementById('send-btn').addEventListener('click', sendChat);
+document.getElementById('clear-chat-btn').addEventListener('click', () => {
+  chatMsgs = [];
+  document.getElementById('chat-msgs').innerHTML = '';
+  showIntroMsg();
+});
+
+function showIntroMsg() {
+  const msgs = document.getElementById('chat-msgs');
+  const div  = document.createElement('div');
+  div.className = 'cmsg ai';
+  div.innerHTML = `<div class="cavatar">🤖</div><div class="cbubble">
+    <p>Hi! Tell me what you're trying to do with your data and I'll point you to the right tool.</p>
+    <div class="chat-suggestions" style="margin-top:8px">
+      <button class="chat-sugg" data-q="I have JSON data I need to make readable">📋 Make JSON readable</button>
+      <button class="chat-sugg" data-q="I need to securely encrypt some text with a password">🔒 Encrypt text securely</button>
+      <button class="chat-sugg" data-q="I want to find all email addresses in a big block of text">📧 Extract emails from text</button>
+      <button class="chat-sugg" data-q="I have a URL that looks garbled with %20 and %3A in it">🔗 Decode a URL</button>
+    </div>
+  </div>`;
+  msgs.appendChild(div);
+}
+
+/* ═══════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════ */
+buildSidebar();
+buildQuickOps();
+loadModels();
+showIntroMsg();
+</script>
+</body>
+</html>

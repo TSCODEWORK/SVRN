@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OSE Wiki — SVRN</title>
+<style>
+:root {
+  --bg:#f0f0ee; --bg2:#ffffff; --bg3:#e8e8e5; --border:#d4d4d0;
+  --text:#3a3a3c; --dim:#8e8e93; --hi:#1c1c1e; --accent:#2f6fd4;
+  --green:#16a34a; --red:#dc2626; --amber:#d97706;
+  --font:'JetBrains Mono','Cascadia Code','SF Mono','Fira Code',monospace;
+  --ui:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Helvetica,Arial,sans-serif;
+  --shadow:0 1px 4px rgba(0,0,0,.08);
+  --sidebar-w:280px;
+  --header-h:58px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;}
+
+/* ── Header ── */
+#header {
+  position:fixed;top:0;left:0;right:0;height:var(--header-h);z-index:100;
+  display:flex;align-items:center;gap:16px;padding:0 20px;
+  background:var(--bg2);border-bottom:1px solid var(--border);box-shadow:var(--shadow);
+}
+.back-btn {
+  display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;
+  color:var(--dim);font-family:var(--ui);font-size:13px;font-weight:500;padding:6px 10px;
+  border-radius:7px;transition:background .12s,color .12s;flex-shrink:0;
+}
+.back-btn:hover{background:var(--bg3);color:var(--hi);}
+.back-btn svg{width:16px;height:16px;flex-shrink:0;}
+.header-title {
+  font-size:15px;font-weight:700;letter-spacing:.22em;color:var(--hi);
+  text-transform:uppercase;flex-shrink:0;
+}
+.header-search {
+  flex:1;max-width:520px;position:relative;
+}
+.header-search input {
+  width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:9px;
+  color:var(--hi);font-family:var(--ui);font-size:14px;padding:8px 14px 8px 36px;
+  outline:none;transition:border-color .15s;
+}
+.header-search input:focus{border-color:var(--accent);}
+.header-search .search-icon {
+  position:absolute;left:11px;top:50%;transform:translateY(-50%);
+  color:var(--dim);pointer-events:none;
+}
+.vault-status {
+  margin-left:auto;display:flex;align-items:center;gap:8px;
+  font-family:var(--ui);font-size:12px;color:var(--dim);flex-shrink:0;
+}
+.vault-dot{width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0;}
+.vault-dot.ok{background:var(--green);box-shadow:0 0 0 3px rgba(22,163,74,.15);}
+
+/* ── Layout ── */
+#layout {
+  display:flex;
+  position:fixed;top:var(--header-h);left:0;right:0;bottom:0;
+}
+
+/* ── Sidebar ── */
+#sidebar {
+  width:var(--sidebar-w);flex-shrink:0;
+  border-right:1px solid var(--border);background:var(--bg2);
+  overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+  display:flex;flex-direction:column;
+}
+
+/* Sidebar search box */
+.sb-search-wrap {
+  padding:14px 14px 10px;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.sb-search-wrap input {
+  width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  color:var(--hi);font-family:var(--ui);font-size:13px;padding:7px 12px;
+  outline:none;transition:border-color .15s;
+}
+.sb-search-wrap input:focus{border-color:var(--accent);}
+
+/* Search results */
+#sb-results {
+  flex:1;overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+}
+.result-item {
+  padding:9px 16px;cursor:pointer;border-left:3px solid transparent;
+  transition:background .1s,border-color .1s;
+}
+.result-item:hover{background:var(--bg3);border-left-color:var(--accent);}
+.result-item.active{background:rgba(47,111,212,.08);border-left-color:var(--accent);}
+.result-title {font-family:var(--ui);font-size:13px;color:var(--hi);line-height:1.4;}
+.result-name  {font-family:var(--ui);font-size:11px;color:var(--dim);margin-top:2px;}
+.result-empty {padding:16px;font-family:var(--ui);font-size:13px;color:var(--dim);text-align:center;}
+
+/* Browse categories */
+#sb-browse {overflow-y:auto;flex:1;}
+.category-group{border-bottom:1px solid var(--border);}
+.category-header {
+  display:flex;align-items:center;gap:8px;padding:11px 14px;cursor:pointer;
+  font-family:var(--ui);font-size:12px;font-weight:600;color:var(--hi);
+  text-transform:uppercase;letter-spacing:.06em;
+  background:none;border:none;width:100%;text-align:left;
+  transition:background .12s;
+}
+.category-header:hover{background:var(--bg3);}
+.category-icon{font-size:15px;flex-shrink:0;}
+.category-label{flex:1;}
+.category-toggle {
+  color:var(--dim);font-size:10px;transition:transform .2s;font-family:var(--font);
+}
+.category-group.open .category-toggle{transform:rotate(90deg);}
+.category-items {
+  display:none;padding:4px 0 8px;
+}
+.category-group.open .category-items{display:block;}
+.cat-item {
+  display:block;padding:6px 14px 6px 36px;cursor:pointer;
+  font-family:var(--ui);font-size:13px;color:var(--text);
+  border-left:3px solid transparent;transition:background .1s,border-color .1s,color .1s;
+}
+.cat-item:hover{background:var(--bg3);border-left-color:var(--accent);color:var(--hi);}
+.cat-item.active{background:rgba(47,111,212,.08);border-left-color:var(--accent);color:var(--accent);}
+
+/* ── Main content ── */
+#main {
+  flex:1;overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+  background:var(--bg);
+}
+
+/* ── Hero / Landing ── */
+#hero {padding:48px 48px 56px;}
+.hero-top {
+  text-align:center;margin-bottom:40px;
+}
+.hero-logo {font-size:72px;line-height:1;margin-bottom:20px;display:block;}
+.hero-title {
+  font-size:32px;font-weight:800;letter-spacing:.04em;color:var(--hi);
+  font-family:var(--ui);margin-bottom:10px;
+}
+.hero-sub {
+  font-size:15px;color:var(--dim);font-family:var(--ui);margin-bottom:24px;
+}
+.hero-stats {
+  display:flex;justify-content:center;gap:32px;flex-wrap:wrap;
+}
+.hero-stat {
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:14px 24px;background:var(--bg2);border:1px solid var(--border);
+  border-radius:10px;box-shadow:var(--shadow);min-width:120px;
+}
+.hero-stat-val {font-size:20px;font-weight:700;color:var(--hi);font-family:var(--ui);}
+.hero-stat-lbl {font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-family:var(--ui);}
+
+.featured-section {margin-top:40px;}
+.featured-label {
+  font-size:12px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase;
+  font-family:var(--ui);margin-bottom:18px;padding-bottom:10px;
+  border-bottom:1px solid var(--border);
+}
+.featured-grid {
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;
+}
+.feat-card {
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:22px 20px 20px;cursor:pointer;box-shadow:var(--shadow);
+  transition:border-color .15s,box-shadow .15s,transform .12s;
+  display:flex;flex-direction:column;gap:10px;
+}
+.feat-card:hover{
+  border-color:var(--accent);box-shadow:0 4px 16px rgba(47,111,212,.12);
+  transform:translateY(-2px);
+}
+.feat-icon{font-size:28px;line-height:1;}
+.feat-title{font-size:15px;font-weight:700;color:var(--hi);font-family:var(--ui);}
+.feat-desc{font-size:12.5px;color:var(--dim);line-height:1.6;font-family:var(--ui);flex:1;}
+.feat-read {
+  display:inline-flex;align-items:center;gap:5px;
+  font-family:var(--ui);font-size:12px;font-weight:600;color:var(--accent);
+  margin-top:4px;
+}
+.feat-read:hover{text-decoration:underline;}
+
+/* ── Article view ── */
+#article-view{display:none;padding:36px 48px 56px;}
+.article-nav {
+  display:flex;align-items:center;gap:12px;margin-bottom:28px;flex-wrap:wrap;
+}
+.art-back-btn {
+  display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);
+  cursor:pointer;color:var(--dim);font-family:var(--ui);font-size:13px;font-weight:500;
+  padding:7px 14px;border-radius:8px;transition:background .12s,color .12s,border-color .12s;
+}
+.art-back-btn:hover{background:var(--bg3);color:var(--hi);border-color:var(--accent);}
+.art-back-btn svg{width:14px;height:14px;}
+.breadcrumb {
+  font-family:var(--ui);font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px;
+}
+.breadcrumb a{color:var(--accent);cursor:pointer;text-decoration:none;}
+.breadcrumb a:hover{text-decoration:underline;}
+.breadcrumb .sep{color:var(--border);}
+
+.article-title {
+  font-size:28px;font-weight:800;color:var(--hi);font-family:var(--ui);
+  margin-bottom:24px;line-height:1.3;
+}
+.article-body {
+  max-width:800px;
+  font-family:var(--ui);font-size:15px;line-height:1.75;color:var(--text);
+}
+
+/* Article body — MediaWiki content styling */
+.article-body h1,.article-body h2,.article-body h3,.article-body h4,.article-body h5 {
+  font-family:var(--ui);color:var(--hi);margin:1.6em 0 .6em;font-weight:700;line-height:1.3;
+}
+.article-body h1{font-size:24px;border-bottom:2px solid var(--border);padding-bottom:8px;}
+.article-body h2{font-size:20px;border-bottom:1px solid var(--border);padding-bottom:6px;}
+.article-body h3{font-size:17px;}
+.article-body h4{font-size:15px;color:var(--dim);}
+.article-body p{margin:.8em 0;}
+.article-body a[data-article]{color:var(--accent);text-decoration:underline;text-underline-offset:3px;cursor:pointer;}
+.article-body a[data-article]:hover{opacity:.75;}
+.article-body a:not([data-article]){color:var(--dim);text-decoration:none;cursor:default;}
+.article-body ul,.article-body ol{padding-left:1.6em;margin:.6em 0;}
+.article-body li{margin:.3em 0;line-height:1.65;}
+.article-body img{max-width:100%;height:auto;border-radius:6px;margin:.4em 0;border:1px solid var(--border);}
+.article-body table{
+  border-collapse:collapse;width:100%;margin:1em 0;font-size:13.5px;
+  border:1px solid var(--border);border-radius:8px;overflow:hidden;
+}
+.article-body th{
+  background:var(--bg3);font-weight:700;padding:9px 14px;
+  border-bottom:1px solid var(--border);text-align:left;color:var(--hi);
+}
+.article-body td{padding:8px 14px;border-bottom:1px solid var(--bg3);}
+.article-body tr:last-child td{border-bottom:none;}
+.article-body tr:hover td{background:rgba(47,111,212,.04);}
+.article-body pre,.article-body code{
+  font-family:var(--font);font-size:13px;background:var(--bg3);border-radius:5px;
+}
+.article-body code{padding:2px 6px;border:1px solid var(--border);}
+.article-body pre{padding:14px 18px;border:1px solid var(--border);overflow-x:auto;margin:.8em 0;border-radius:8px;}
+.article-body pre code{background:none;border:none;padding:0;}
+.article-body blockquote{
+  border-left:3px solid var(--accent);margin:.8em 0;padding:.4em 16px;
+  color:var(--dim);font-style:italic;background:rgba(47,111,212,.04);border-radius:0 6px 6px 0;
+}
+.article-body .infobox,.article-body .wikitable {
+  float:right;clear:right;margin:0 0 18px 24px;max-width:340px;
+  background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;
+  font-size:13px;
+}
+@media(max-width:700px){
+  .article-body .infobox,.article-body .wikitable{float:none;max-width:100%;margin:0 0 18px 0;}
+}
+.article-body .thumb{float:left;margin:0 18px 12px 0;max-width:280px;}
+.article-body .thumbinner{border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg2);}
+.article-body .thumbcaption{font-size:12px;color:var(--dim);padding:6px 8px;}
+/* Hide noisy wiki UI elements */
+.article-body .mw-editsection,
+.article-body #toc ~ style,
+.article-body .noprint,
+.article-body .mw-empty-elt,
+.article-body .NavFrame,
+.article-body .mbox-small,
+.article-body .lang,
+.article-body .lang_main,
+.article-body .printfooter,
+.article-body #catlinks,
+.article-body .mw-indicators,
+.article-body .sister-box,
+.article-body .hatnote + .hatnote,
+.article-body table.navbox,
+.article-body .portal-bar {display:none !important;}
+/* TOC */
+.article-body #toc,.article-body .toc {
+  background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+  padding:14px 18px;margin:1em 0 1.4em;display:inline-block;min-width:200px;
+}
+.article-body #toc h2,.article-body .toctitle{font-size:13px;font-weight:700;margin:0 0 8px;color:var(--hi);}
+.article-body #toc ul,.article-body .toc ul{list-style:none;padding:0;margin:0;}
+.article-body #toc li,.article-body .toc li{margin:.25em 0;font-size:13px;}
+.article-body #toc a,.article-body .toc a{color:var(--accent);}
+
+/* Loading spinner */
+.loading-wrap {
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:60px;gap:16px;color:var(--dim);font-family:var(--ui);font-size:14px;
+}
+.spinner {
+  width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* Offline notice */
+.offline-notice {
+  background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.3);border-radius:10px;
+  padding:20px 24px;font-family:var(--ui);font-size:14px;color:var(--hi);
+  display:flex;align-items:flex-start;gap:14px;max-width:600px;margin:40px auto;
+}
+.offline-notice .notice-icon{font-size:28px;flex-shrink:0;}
+.offline-notice strong{display:block;margin-bottom:6px;color:var(--amber);}
+
+/* Scrollbars */
+#sidebar::-webkit-scrollbar,#main::-webkit-scrollbar,#sb-results::-webkit-scrollbar,#sb-browse::-webkit-scrollbar {width:5px;}
+#sidebar::-webkit-scrollbar-track,#main::-webkit-scrollbar-track,#sb-results::-webkit-scrollbar-track,#sb-browse::-webkit-scrollbar-track{background:transparent;}
+#sidebar::-webkit-scrollbar-thumb,#main::-webkit-scrollbar-thumb,#sb-results::-webkit-scrollbar-thumb,#sb-browse::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<!-- ── Fixed Header ── -->
+<div id="header">
+  <button class="back-btn" onclick="window.history.back()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+    Dashboard
+  </button>
+
+  <div class="header-title">OSE WIKI</div>
+
+  <div class="header-search">
+    <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" id="header-search-input" placeholder="Search OSE Wiki articles…" autocomplete="off" spellcheck="false">
+  </div>
+
+  <div class="vault-status">
+    <div class="vault-dot" id="vault-dot"></div>
+    <span id="vault-status-text">Checking vault…</span>
+  </div>
+</div>
+
+<!-- ── Layout ── -->
+<div id="layout">
+
+  <!-- ── Sidebar ── -->
+  <div id="sidebar">
+    <div class="sb-search-wrap">
+      <input type="text" id="sb-search" placeholder="Search articles…" autocomplete="off" spellcheck="false">
+    </div>
+
+    <!-- Search results (shown when typing) -->
+    <div id="sb-results" style="display:none;"></div>
+
+    <!-- Browse (shown when not searching) -->
+    <div id="sb-browse"></div>
+  </div>
+
+  <!-- ── Main Area ── -->
+  <div id="main">
+    <!-- Hero / landing -->
+    <div id="hero"></div>
+
+    <!-- Article view -->
+    <div id="article-view"></div>
+  </div>
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────
+
+const CATEGORIES = [
+  {
+    icon: '🏗️', label: 'GVCS Machines',
+    items: ['CEB_Press','LifeTrac','Power_Cube','Soil_Pulverizer','Backhoe',
+            'Well_Drilling_Rig','Torch_Table','Plasma_Cutter','Ironworker',
+            'Rod_and_Wire_Mill','Induction_Furnace','Drill_Press','Rototiller',
+            'Trencher','Hay_Rake','Seeder','Hay_Cutter','Baler','Combine',
+            'Dairy_Milker','Bakery_Oven','Industrial_Robot','3D_Printer']
+  },
+  {
+    icon: '📖', label: 'Core Reading',
+    items: ['Global_Village_Construction_Set','Crash_course_on_OSE',
+            'Getting_Started_Guide','OSE_Principles']
+  },
+  {
+    icon: '🌾', label: 'Agriculture',
+    items: ['Permaculture','Aquaponic_Greenhouse','Seed_Library','Biochar']
+  },
+  {
+    icon: '⚡', label: 'Energy',
+    items: ['Solar_Panels','Wind_Power','Biodiesel','Biogas']
+  },
+  {
+    icon: '🏠', label: 'Housing',
+    items: ['Seed_Eco-Home','Compressed_Earth_Block','Earthbag_House','Wofati']
+  }
+];
+
+const FEATURED = [
+  { name:'Global_Village_Construction_Set', icon:'🌍', title:'Global Village Construction Set',
+    desc:'The open-source blueprint for 50 machines needed to build a self-sufficient civilization from scratch.' },
+  { name:'CEB_Press', icon:'🧱', title:'CEB Press',
+    desc:'A machine that compresses raw earth into strong, uniform bricks — build your house from your own soil.' },
+  { name:'LifeTrac', icon:'🚜', title:'LifeTrac',
+    desc:'An open-source tractor with modular attachments for agriculture, construction, and earthmoving.' },
+  { name:'Power_Cube', icon:'⚙️', title:'Power Cube',
+    desc:'A self-contained hydraulic power unit — the "engine" that powers most GVCS machines.' },
+  { name:'Seed_Eco-Home', icon:'🏡', title:'Seed Eco-Home',
+    desc:'A 1,000 sq ft sustainable home designed to be built affordably and replicated worldwide.' },
+  { name:'Aquaponic_Greenhouse', icon:'🌿', title:'Aquaponic Greenhouse',
+    desc:'A combined fish farming and plant growing system — food production year-round.' }
+];
+
+// ── State ─────────────────────────────────────────────────────────────────
+
+let history_stack = [];   // article name stack
+let active_article = null;
+let search_timer   = null;
+let wiki_available = false;
+
+// ── Vault / status check ──────────────────────────────────────────────────
+
+async function checkVaultStatus() {
+  try {
+    const data = await fetch('/api/ose/status').then(r => r.json());
+    wiki_available = data.available;
+    const dot  = document.getElementById('vault-dot');
+    const text = document.getElementById('vault-status-text');
+    if (data.available) {
+      dot.classList.add('ok');
+      text.textContent = 'Wiki Available';
+    } else {
+      dot.classList.remove('ok');
+      text.textContent = 'Vault Not Connected';
+    }
+  } catch {
+    document.getElementById('vault-status-text').textContent = 'Status Unknown';
+  }
+}
+
+// ── Hero / Landing ────────────────────────────────────────────────────────
+
+function renderHero() {
+  const hero = document.getElementById('hero');
+  hero.innerHTML = `
+    <div class="hero-top">
+      <span class="hero-logo">🌿</span>
+      <div class="hero-title">Open Source Ecology</div>
+      <div class="hero-sub">Offline wiki mirror — open-source blueprints for self-sufficient civilization</div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <div class="hero-stat-val">25,676</div>
+          <div class="hero-stat-lbl">Articles</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-val">43,000+</div>
+          <div class="hero-stat-lbl">Images</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-val">3.2 GB</div>
+          <div class="hero-stat-lbl">Offline</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="featured-section">
+      <div class="featured-label">Featured Articles</div>
+      <div class="featured-grid">
+        ${FEATURED.map(f => `
+          <div class="feat-card" onclick="loadArticle('${escHtml(f.name)}')">
+            <div class="feat-icon">${f.icon}</div>
+            <div class="feat-title">${escHtml(f.title)}</div>
+            <div class="feat-desc">${escHtml(f.desc)}</div>
+            <div class="feat-read">Read &rarr;</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ── Sidebar browse ────────────────────────────────────────────────────────
+
+function buildBrowse() {
+  const container = document.getElementById('sb-browse');
+  const saved = getSavedGroups();
+
+  container.innerHTML = CATEGORIES.map((cat, i) => {
+    const key = 'cat-' + i;
+    const open = saved[key] !== false; // default open
+    return `
+      <div class="category-group ${open ? 'open' : ''}" data-key="${key}">
+        <button class="category-header" onclick="toggleGroup(this.parentElement)">
+          <span class="category-icon">${cat.icon}</span>
+          <span class="category-label">${cat.label}</span>
+          <span class="category-toggle">▶</span>
+        </button>
+        <div class="category-items">
+          ${cat.items.map(name => `
+            <div class="cat-item" data-article="${escHtml(name)}" onclick="loadArticle('${escHtml(name)}')">
+              ${escHtml(name.replace(/_/g, ' '))}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleGroup(groupEl) {
+  groupEl.classList.toggle('open');
+  const key = groupEl.dataset.key;
+  const saved = getSavedGroups();
+  saved[key] = groupEl.classList.contains('open');
+  localStorage.setItem('ose-groups', JSON.stringify(saved));
+}
+
+function getSavedGroups() {
+  try { return JSON.parse(localStorage.getItem('ose-groups') || '{}'); }
+  catch { return {}; }
+}
+
+// ── Search ────────────────────────────────────────────────────────────────
+
+function setSearchMode(searching) {
+  document.getElementById('sb-results').style.display = searching ? '' : 'none';
+  document.getElementById('sb-browse').style.display  = searching ? 'none' : '';
+}
+
+async function doSearch(q) {
+  const resultsEl = document.getElementById('sb-results');
+  if (!q.trim()) {
+    setSearchMode(false);
+    return;
+  }
+  setSearchMode(true);
+  resultsEl.innerHTML = '<div class="result-empty">Searching…</div>';
+
+  try {
+    const results = await fetch('/api/ose/search?q=' + encodeURIComponent(q)).then(r => r.json());
+    if (!results.length) {
+      resultsEl.innerHTML = '<div class="result-empty">No articles found</div>';
+      return;
+    }
+    resultsEl.innerHTML = results.map(r => `
+      <div class="result-item ${active_article === r.name ? 'active' : ''}"
+           data-article="${escHtml(r.name)}"
+           onclick="loadArticle('${escHtml(r.name)}')">
+        <div class="result-title">${highlightMatch(escHtml(r.title), q)}</div>
+        <div class="result-name">${escHtml(r.name)}</div>
+      </div>
+    `).join('');
+  } catch {
+    resultsEl.innerHTML = '<div class="result-empty">Search unavailable</div>';
+  }
+}
+
+function highlightMatch(text, q) {
+  if (!q) return text;
+  const re = new RegExp('(' + escRegex(q.replace(/_/g, ' ')) + ')', 'gi');
+  return text.replace(re, '<mark style="background:rgba(47,111,212,.18);border-radius:2px;padding:0 1px">$1</mark>');
+}
+
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+const debouncedSearch = debounce(doSearch, 250);
+
+// ── Article loading ───────────────────────────────────────────────────────
+
+async function loadArticle(name) {
+  if (!name) return;
+
+  // Decode any URL encoding in the name
+  try { name = decodeURIComponent(name); } catch(e) {}
+
+  // Push to history
+  if (active_article && active_article !== name) {
+    history_stack.push(active_article);
+  }
+  active_article = name;
+
+  showArticleView(`
+    <div class="loading-wrap">
+      <div class="spinner"></div>
+      <div>Loading…</div>
+    </div>
+  `);
+
+  markActiveItem(name);
+  scrollMainToTop();
+
+  try {
+    const data = await fetch('/api/ose/article?name=' + encodeURIComponent(name)).then(r => r.json());
+    if (data.error) {
+      showArticleView(`
+        <div class="offline-notice">
+          <div class="notice-icon">⚠️</div>
+          <div>
+            <strong>Article not in mirror</strong>
+            <em>${escHtml(name.replace(/_/g,' '))}</em> wasn't captured during the download.
+            Try searching for a related term.
+          </div>
+        </div>
+      `);
+      return;
+    }
+
+    // Build breadcrumb — handle subpages (Parent/Child)
+    const parts = name.split('/');
+    const crumbs = parts.map((p, i) => {
+      const articleName = parts.slice(0, i + 1).join('/');
+      return i < parts.length - 1
+        ? `<a onclick="loadArticle('${escHtml(articleName)}')">${escHtml(p.replace(/_/g,' '))}</a>`
+        : `<span>${escHtml(data.title)}</span>`;
+    });
+
+    const articleHtml = `
+      <div class="article-nav">
+        <button class="art-back-btn" onclick="goBack()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          ${history_stack.length ? 'Back' : 'Home'}
+        </button>
+        <div class="breadcrumb">
+          <a onclick="goHome()">OSE Wiki</a>
+          <span class="sep">/</span>
+          ${crumbs.join('<span class="sep">/</span>')}
+        </div>
+      </div>
+      <div class="article-title">${escHtml(data.title)}</div>
+      <div class="article-body" id="article-body-inner">${data.html}</div>
+    `;
+
+    showArticleView(articleHtml);
+    attachArticleLinks();
+
+  } catch(e) {
+    showArticleView(`
+      <div class="offline-notice">
+        <div class="notice-icon">⚠️</div>
+        <div><strong>Load Error</strong> — Is the dashboard server running?</div>
+      </div>
+    `);
+  }
+}
+
+function showArticleView(innerHtml) {
+  document.getElementById('hero').style.display = 'none';
+  const av = document.getElementById('article-view');
+  av.style.display = 'block';
+  av.innerHTML = innerHtml;
+}
+
+function attachArticleLinks() {
+  const body = document.getElementById('article-body-inner');
+  if (!body) return;
+
+  // Wiki article links
+  body.querySelectorAll('[data-article]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const name = el.getAttribute('data-article');
+      if (name) loadArticle(name);
+    });
+  });
+
+  // Anchor links (TOC, section links) — scroll within the article instead of navigating
+  body.querySelectorAll('a[href^="#"]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.preventDefault();
+      const id = el.getAttribute('href').slice(1);
+      const target = body.querySelector('#' + CSS.escape(id));
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  // Make images clickable to open full size in a new tab (for zoom)
+  body.querySelectorAll('img').forEach(img => {
+    img.style.cursor = 'zoom-in';
+    img.addEventListener('click', () => {
+      // Use original image (remove thumb sizing suffix)
+      const src = img.src.replace(/\/ose-wiki\/images\/thumb\/(.\/..\/[^\/]+)\/[^\/]+$/, '/ose-wiki/images/$1');
+      window.open(src, '_blank');
+    });
+  });
+}
+
+function markActiveItem(name) {
+  document.querySelectorAll('.result-item, .cat-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.article === name);
+  });
+}
+
+function scrollMainToTop() {
+  document.getElementById('main').scrollTop = 0;
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────
+
+function goHome() {
+  active_article  = null;
+  history_stack   = [];
+  document.getElementById('article-view').style.display = 'none';
+  document.getElementById('hero').style.display = 'block';
+  markActiveItem(null);
+  scrollMainToTop();
+}
+
+function goBack() {
+  if (history_stack.length) {
+    const prev = history_stack.pop();
+    active_article = null; // prevent pushing current to history again
+    loadArticle(prev);
+  } else {
+    goHome();
+  }
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function escRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+
+function init() {
+  renderHero();
+  buildBrowse();
+  checkVaultStatus();
+
+  // Header search
+  const hInput = document.getElementById('header-search-input');
+  hInput.addEventListener('input', () => {
+    const q = hInput.value.trim();
+    const sbInput = document.getElementById('sb-search');
+    sbInput.value = q;
+    debouncedSearch(q);
+  });
+  hInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      doSearch(hInput.value.trim());
+    }
+  });
+
+  // Sidebar search
+  const sbInput = document.getElementById('sb-search');
+  sbInput.addEventListener('input', () => {
+    const q = sbInput.value.trim();
+    hInput.value = q;
+    debouncedSearch(q);
+  });
+  sbInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      doSearch(sbInput.value.trim());
+    }
+  });
+
+  // Keyboard shortcut: / to focus search
+  document.addEventListener('keydown', e => {
+    if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      hInput.focus();
+    }
+    if (e.key === 'Escape') {
+      if (document.activeElement === hInput || document.activeElement === sbInput) {
+        hInput.value = '';
+        sbInput.value = '';
+        setSearchMode(false);
+        hInput.blur();
+        sbInput.blur();
+      }
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

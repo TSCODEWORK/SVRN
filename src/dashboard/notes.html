@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVRN · Notes</title>
+<script src="/static/marked.min.js"></script>
+<style>
+:root {
+  --bg:#f0f0ee; --bg2:#ffffff; --bg3:#e8e8e5; --border:#d4d4d0;
+  --text:#3a3a3c; --dim:#8e8e93; --hi:#1c1c1e; --accent:#2f6fd4;
+  --green:#16a34a; --red:#dc2626; --amber:#d97706;
+  --font:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono','SF Mono','Fira Code',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;overflow:hidden;}
+
+header{
+  display:flex;align-items:center;gap:16px;padding:12px 20px;
+  border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);z-index:100;
+}
+.back{color:var(--dim);text-decoration:none;font-size:13px;white-space:nowrap;}
+.back:hover{color:var(--hi);}
+.page-title{font-size:16px;font-weight:700;letter-spacing:.08em;color:var(--hi);}
+.hdr-actions{margin-left:auto;display:flex;gap:8px;}
+
+.btn{
+  font-family:var(--font);font-size:13px;font-weight:500;
+  padding:7px 16px;border-radius:7px;border:1px solid var(--border);
+  cursor:pointer;background:var(--bg3);color:var(--text);
+  transition:background .12s,border-color .12s;white-space:nowrap;
+}
+.btn:hover{background:var(--border);}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+.btn.primary:hover{opacity:.88;}
+.btn.danger{background:none;color:var(--red);border-color:var(--red);}
+.btn.danger:hover{background:var(--red);color:#fff;}
+.btn.ghost{background:none;border-color:transparent;color:var(--dim);}
+.btn.ghost:hover{color:var(--hi);background:var(--bg3);}
+.btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+.layout{display:flex;height:calc(100vh - 49px);overflow:hidden;}
+
+/* ── Sidebar ── */
+.sidebar{
+  width:260px;flex-shrink:0;border-right:1px solid var(--border);
+  background:var(--bg2);display:flex;flex-direction:column;
+}
+.sidebar-hdr{
+  padding:14px 16px 10px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;
+}
+.sidebar-hdr span{font-size:12px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;flex:1;}
+.search-box{
+  margin:10px 12px;
+  background:var(--bg3);border:1px solid var(--border);border-radius:7px;
+  display:flex;align-items:center;gap:6px;padding:7px 10px;
+}
+.search-box input{
+  background:none;border:none;outline:none;font-family:var(--font);
+  font-size:13px;color:var(--hi);flex:1;
+}
+.search-box svg{color:var(--dim);flex-shrink:0;}
+.note-list{flex:1;overflow-y:auto;padding:4px 0;}
+.note-item{
+  padding:12px 16px;cursor:pointer;border-left:3px solid transparent;
+  border-bottom:1px solid var(--bg3);transition:background .1s;
+}
+.note-item:hover{background:var(--bg3);}
+.note-item.active{background:rgba(47,111,212,.07);border-left-color:var(--accent);}
+.note-item-title{font-size:14px;font-weight:600;color:var(--hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.note-item-date{font-size:11px;color:var(--dim);margin-top:3px;}
+.note-item-preview{font-size:12px;color:var(--dim);margin-top:4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.empty-list{padding:32px 16px;text-align:center;color:var(--dim);font-size:13px;line-height:1.7;}
+
+/* ── Editor pane ── */
+.editor-pane{
+  flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);
+}
+.editor-toolbar{
+  display:flex;align-items:center;gap:8px;padding:10px 18px;
+  border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;
+}
+#note-title-input{
+  flex:1;font-family:var(--font);font-size:17px;font-weight:700;
+  background:none;border:none;outline:none;color:var(--hi);
+  letter-spacing:.02em;
+}
+#note-title-input::placeholder{color:var(--dim);}
+.toolbar-right{display:flex;gap:6px;flex-shrink:0;}
+
+.editor-body{flex:1;overflow:hidden;position:relative;}
+#note-editor{
+  width:100%;height:100%;resize:none;border:none;outline:none;
+  font-family:var(--mono);font-size:14px;line-height:1.75;
+  background:var(--bg);color:var(--text);padding:28px 36px;
+  overflow-y:auto;tab-size:2;
+}
+#note-preview{
+  width:100%;height:100%;overflow-y:auto;padding:28px 36px;display:none;
+  background:var(--bg);
+}
+/* Markdown styles */
+#note-preview h1,#note-preview h2,#note-preview h3{color:var(--hi);font-family:var(--font);margin:1.4em 0 .6em;line-height:1.3;}
+#note-preview h1{font-size:22px;border-bottom:1px solid var(--border);padding-bottom:.4em;}
+#note-preview h2{font-size:18px;}
+#note-preview h3{font-size:16px;}
+#note-preview p{margin:.8em 0;line-height:1.75;color:var(--text);}
+#note-preview a{color:var(--accent);}
+#note-preview code{font-family:var(--mono);font-size:13px;background:var(--bg3);
+  padding:2px 6px;border-radius:4px;color:var(--hi);}
+#note-preview pre{background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+  padding:16px 20px;overflow-x:auto;margin:1em 0;}
+#note-preview pre code{background:none;padding:0;}
+#note-preview blockquote{border-left:3px solid var(--accent);margin:1em 0;
+  padding:.5em 1em;color:var(--dim);font-style:italic;}
+#note-preview ul,#note-preview ol{padding-left:1.6em;margin:.6em 0;line-height:1.8;}
+#note-preview table{border-collapse:collapse;width:100%;margin:1em 0;}
+#note-preview th,#note-preview td{border:1px solid var(--border);padding:8px 12px;font-size:14px;}
+#note-preview th{background:var(--bg3);font-weight:600;}
+#note-preview hr{border:none;border-top:1px solid var(--border);margin:1.5em 0;}
+
+.no-note{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:16px;color:var(--dim);
+}
+.no-note svg{opacity:.3;}
+.no-note p{font-size:14px;text-align:center;line-height:1.7;}
+.no-note .big{font-size:17px;font-weight:600;color:var(--dim);}
+
+.save-indicator{font-size:12px;color:var(--green);opacity:0;transition:opacity .4s;}
+.save-indicator.show{opacity:1;}
+
+/* Delete confirm modal */
+.del-modal{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);
+  z-index:500;align-items:center;justify-content:center;
+}
+.del-modal.open{display:flex;}
+.del-box{
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:28px 32px;max-width:360px;text-align:center;
+  box-shadow:0 8px 32px rgba(0,0,0,.15);
+}
+.del-box h3{font-size:16px;color:var(--hi);margin-bottom:10px;}
+.del-box p{font-size:13px;color:var(--dim);margin-bottom:22px;line-height:1.6;}
+.del-box-btns{display:flex;gap:10px;justify-content:center;}
+</style>
+</head>
+<body>
+
+<header>
+  <a class="back" href="/">← Dashboard</a>
+  <div class="page-title">NOTES</div>
+  <div class="hdr-actions">
+    <button class="btn primary" onclick="newNote()">+ New Note</button>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-hdr">
+      <span>All Notes</span>
+      <span id="note-count" style="font-size:12px;color:var(--dim)">0</span>
+    </div>
+    <div class="search-box">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input id="search-input" placeholder="Search notes…" oninput="filterNotes(this.value)">
+    </div>
+    <div class="note-list" id="note-list"></div>
+  </div>
+
+  <!-- Editor pane -->
+  <div class="editor-pane" id="editor-pane">
+    <div class="no-note" id="no-note">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <p class="big">No note selected</p>
+      <p>Create a new note or select one from the list.</p>
+      <button class="btn primary" onclick="newNote()">+ New Note</button>
+    </div>
+    <div id="note-editor-wrap" style="display:none;flex-direction:column;height:100%;overflow:hidden;">
+      <div class="editor-toolbar">
+        <input id="note-title-input" placeholder="Untitled" oninput="onTitleChange()">
+        <div class="toolbar-right">
+          <span class="save-indicator" id="save-ind">Saved</span>
+          <button class="btn ghost" id="preview-btn" onclick="togglePreview()" title="Preview markdown">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <button class="btn danger" onclick="confirmDelete()" title="Delete note">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="editor-body">
+        <textarea id="note-editor" placeholder="Write in Markdown…&#10;&#10;# Heading&#10;**bold**, *italic*, `code`&#10;- list items" oninput="onContentChange()"></textarea>
+        <div id="note-preview"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirm modal -->
+<div class="del-modal" id="del-modal" onclick="if(event.target===this)closeDelModal()">
+  <div class="del-box">
+    <h3>Delete Note?</h3>
+    <p>This cannot be undone. The note will be permanently removed.</p>
+    <div class="del-box-btns">
+      <button class="btn" onclick="closeDelModal()">Cancel</button>
+      <button class="btn danger" onclick="deleteNote()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let notes = [];
+let activeId = null;
+let saveTimer = null;
+let previewMode = false;
+let allNotes = [];
+
+async function loadNotes() {
+  try {
+    const data = await fetch('/api/notes').then(r => r.json());
+    allNotes = data;
+    renderList(data);
+  } catch(e) {
+    document.getElementById('note-list').innerHTML =
+      '<div class="empty-list">Error loading notes</div>';
+  }
+}
+
+function renderList(data) {
+  const list = document.getElementById('note-list');
+  document.getElementById('note-count').textContent = data.length;
+  if (!data.length) {
+    list.innerHTML = '<div class="empty-list">No notes yet.<br>Click <strong>+ New Note</strong> to start.</div>';
+    return;
+  }
+  list.innerHTML = data.map(n => `
+    <div class="note-item${n.id===activeId?' active':''}" onclick="selectNote('${n.id}')">
+      <div class="note-item-title">${esc(n.title||'Untitled')}</div>
+      <div class="note-item-date">${fmtDate(n.updated_at||n.created_at)}</div>
+      <div class="note-item-preview">${esc((n.content||'').replace(/[#*`\n]/g,' ').slice(0,80))}</div>
+    </div>
+  `).join('');
+}
+
+function filterNotes(q) {
+  if (!q.trim()) { renderList(allNotes); return; }
+  const lower = q.toLowerCase();
+  renderList(allNotes.filter(n =>
+    (n.title||'').toLowerCase().includes(lower) ||
+    (n.content||'').toLowerCase().includes(lower)
+  ));
+}
+
+async function selectNote(id) {
+  activeId = id;
+  renderList(allNotes.filter(n => {
+    const q = document.getElementById('search-input').value.toLowerCase();
+    return !q || (n.title||'').toLowerCase().includes(q) || (n.content||'').toLowerCase().includes(q);
+  }));
+  const note = allNotes.find(n => n.id === id);
+  if (!note) return;
+  showEditorPane();
+  document.getElementById('note-title-input').value = note.title || '';
+  document.getElementById('note-editor').value = note.content || '';
+  if (previewMode) renderPreview();
+}
+
+function showEditorPane() {
+  document.getElementById('no-note').style.display = 'none';
+  const wrap = document.getElementById('note-editor-wrap');
+  wrap.style.display = 'flex';
+}
+
+async function newNote() {
+  try {
+    const note = await fetch('/api/notes', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ title: 'Untitled', content: '' })
+    }).then(r => r.json());
+    allNotes.unshift(note);
+    renderList(allNotes);
+    await selectNote(note.id);
+    document.getElementById('note-title-input').focus();
+    document.getElementById('note-title-input').select();
+  } catch(e) { alert('Error creating note: ' + e.message); }
+}
+
+function onTitleChange() {
+  schedSave();
+}
+function onContentChange() {
+  if (previewMode) renderPreview();
+  schedSave();
+}
+function schedSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveNote, 800);
+}
+
+async function saveNote() {
+  if (!activeId) return;
+  const title   = document.getElementById('note-title-input').value || 'Untitled';
+  const content = document.getElementById('note-editor').value;
+  try {
+    const updated = await fetch(`/api/notes/${activeId}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ title, content })
+    }).then(r => r.json());
+    const idx = allNotes.findIndex(n => n.id === activeId);
+    if (idx >= 0) allNotes[idx] = updated;
+    // Move updated note to top
+    allNotes.sort((a, b) => (b.updated_at||0) - (a.updated_at||0));
+    renderList(allNotes);
+    showSaved();
+  } catch {}
+}
+
+function showSaved() {
+  const el = document.getElementById('save-ind');
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1600);
+}
+
+function togglePreview() {
+  previewMode = !previewMode;
+  const btn = document.getElementById('preview-btn');
+  const editor = document.getElementById('note-editor');
+  const preview = document.getElementById('note-preview');
+  if (previewMode) {
+    btn.classList.add('active');
+    editor.style.display = 'none';
+    preview.style.display = 'block';
+    renderPreview();
+  } else {
+    btn.classList.remove('active');
+    editor.style.display = 'block';
+    preview.style.display = 'none';
+    editor.focus();
+  }
+}
+
+function renderPreview() {
+  const md = document.getElementById('note-editor').value;
+  document.getElementById('note-preview').innerHTML =
+    typeof marked !== 'undefined' ? marked.parse(md) : `<pre>${esc(md)}</pre>`;
+}
+
+function confirmDelete() {
+  document.getElementById('del-modal').classList.add('open');
+}
+function closeDelModal() {
+  document.getElementById('del-modal').classList.remove('open');
+}
+async function deleteNote() {
+  closeDelModal();
+  if (!activeId) return;
+  try {
+    await fetch(`/api/notes/${activeId}`, { method: 'DELETE' });
+    allNotes = allNotes.filter(n => n.id !== activeId);
+    activeId = null;
+    renderList(allNotes);
+    document.getElementById('no-note').style.display = 'flex';
+    document.getElementById('note-editor-wrap').style.display = 'none';
+  } catch(e) { alert('Error deleting: ' + e.message); }
+}
+
+function fmtDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  const diff = (now - d) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  if (diff < 604800) return Math.floor(diff/86400) + 'd ago';
+  return d.toLocaleDateString();
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'n') { e.preventDefault(); newNote(); }
+  if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); clearTimeout(saveTimer); saveNote(); }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'p') { e.preventDefault(); togglePreview(); }
+});
+
+loadNotes();
+</script>
+</body>
+</html>

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVRN · Maps</title>
+<link rel="stylesheet" href="/static/maplibre-gl.css" />
+<style>
+:root {
+  --bg:#f0f0ee; --bg2:#ffffff; --bg3:#e8e8e5; --border:#d4d4d0;
+  --text:#3a3a3c; --dim:#8e8e93; --hi:#1c1c1e; --accent:#2f6fd4;
+  --font:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:#b8d8ea;overflow:hidden;}
+
+/* Full-screen map */
+#map{position:fixed;inset:0;width:100%;height:100%;}
+
+/* ── Header bar ── */
+.header{
+  position:fixed;top:0;left:0;right:0;z-index:1000;
+  display:flex;align-items:center;gap:16px;
+  padding:12px 20px;
+  background:rgba(255,255,255,.92);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid rgba(212,212,208,.7);
+  box-shadow:0 1px 8px rgba(0,0,0,.08);
+  font-family:var(--font);
+}
+.back{color:var(--dim);text-decoration:none;font-size:13px;white-space:nowrap;}
+.back:hover{color:var(--hi);}
+.page-title{font-size:16px;font-weight:700;letter-spacing:.06em;color:var(--hi);white-space:nowrap;}
+
+/* Search bar in header */
+.search-wrap{
+  flex:1;display:flex;align-items:center;gap:0;
+  max-width:380px;margin:0 auto;
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px;overflow:hidden;
+}
+.search-wrap input{
+  flex:1;background:none;border:none;outline:none;
+  font-family:var(--font);font-size:14px;color:var(--hi);
+  padding:8px 12px;
+}
+.search-wrap input::placeholder{color:var(--dim);}
+.search-wrap button{
+  background:var(--accent);border:none;color:#fff;
+  font-family:var(--font);font-size:13px;font-weight:600;
+  padding:0 16px;height:36px;cursor:pointer;white-space:nowrap;
+}
+.search-wrap button:hover{opacity:.85;}
+
+/* Map count badge */
+.map-badge{
+  font-family:var(--font);font-size:12px;color:var(--dim);
+  white-space:nowrap;
+}
+.map-badge span{color:var(--hi);font-weight:600;}
+
+/* ── MapLibre control overrides ── */
+.maplibregl-ctrl-group{
+  background:rgba(255,255,255,.92) !important;
+  border:1px solid rgba(212,212,208,.8) !important;
+  box-shadow:0 2px 8px rgba(0,0,0,.12) !important;
+  backdrop-filter:blur(8px);
+}
+.maplibregl-ctrl-group button{
+  background:transparent !important;
+  border-bottom:1px solid rgba(212,212,208,.6) !important;
+  color:var(--hi) !important;width:36px !important;height:36px !important;
+}
+.maplibregl-ctrl-group button:last-child{border-bottom:none !important;}
+.maplibregl-ctrl-group button:hover{background:rgba(0,0,0,.06) !important;}
+.maplibregl-ctrl-attrib{
+  background:rgba(255,255,255,.75) !important;
+  color:var(--dim) !important;font-size:10px !important;
+  font-family:var(--font) !important;
+}
+.maplibregl-ctrl-attrib a{color:var(--accent) !important;}
+
+/* ── No-maps overlay ── */
+.overlay{
+  position:fixed;inset:0;z-index:500;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(240,240,238,.85);
+  backdrop-filter:blur(8px);
+}
+.overlay-card{
+  background:var(--bg2);border:1px solid var(--border);border-radius:16px;
+  padding:36px 44px;text-align:center;
+  box-shadow:0 12px 40px rgba(0,0,0,.12);max-width:360px;
+  font-family:var(--font);
+}
+.overlay-card h2{font-size:19px;color:var(--hi);margin-bottom:12px;font-weight:700;}
+.overlay-card p{font-size:14px;color:var(--dim);line-height:1.75;}
+.overlay-card a{color:var(--accent);text-decoration:none;font-weight:500;}
+.overlay-card a:hover{text-decoration:underline;}
+
+/* ── Search pin marker ── */
+.search-marker{
+  width:18px;height:18px;border-radius:50%;
+  background:var(--accent);border:3px solid #fff;
+  box-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+
+/* ── Loading spinner ── */
+.spinner{
+  position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+  background:rgba(255,255,255,.92);border:1px solid var(--border);
+  border-radius:20px;padding:8px 18px;font-family:var(--font);
+  font-size:13px;color:var(--dim);z-index:600;
+  box-shadow:0 2px 12px rgba(0,0,0,.1);display:none;
+  backdrop-filter:blur(8px);
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <a class="back" href="/">← Dashboard</a>
+  <div class="page-title">MAPS</div>
+
+  <div class="search-wrap">
+    <input id="search-input" type="text" placeholder="Search place…"
+           onkeydown="if(event.key==='Enter')doSearch()">
+    <button onclick="doSearch()">Go</button>
+  </div>
+
+  <div class="map-badge" id="map-badge" style="display:none">
+    <span id="badge-count">0</span> map<span id="badge-s">s</span> loaded
+  </div>
+</header>
+
+<!-- Full-screen map -->
+<div id="map"></div>
+
+<!-- No maps installed -->
+<div class="overlay" id="overlay" style="display:none">
+  <div class="overlay-card">
+    <h2>No Maps Downloaded</h2>
+    <p>Download maps from the <a href="/">Dashboard</a>.<br>
+    They'll load automatically — no buttons needed.</p>
+  </div>
+</div>
+
+<!-- Loading indicator -->
+<div class="spinner" id="spinner">Loading maps…</div>
+
+<script src="/static/pmtiles.js"></script>
+<script src="/static/maplibre-gl.js"></script>
+<script>
+// ── Register PMTiles protocol ────────────────────────────────────────────────
+const protocol = new pmtiles.Protocol();
+maplibregl.addProtocol('pmtiles', protocol.tilev4);
+
+// ── Create map at world view ─────────────────────────────────────────────────
+const map = new maplibregl.Map({
+  container: 'map',
+  style: { version: 8, sources: {}, layers: [
+    { id: 'background', type: 'background', paint: { 'background-color': '#b8d8ea' } }
+  ]},
+  center: [0, 20],
+  zoom: 2,
+  attributionControl: true,
+});
+
+map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'bottom-right');
+map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
+map.addControl(new maplibregl.FullscreenControl(), 'bottom-right');
+
+// Offset controls below the header bar
+map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+
+// ── Load all installed maps at once ─────────────────────────────────────────
+let searchMarker = null;
+
+async function initMaps() {
+  const spinner = document.getElementById('spinner');
+  spinner.style.display = 'block';
+
+  try {
+    // Fetch the combined style (all installed maps as sources in one style)
+    const style = await fetch('/api/maps/combined-style').then(r => r.json());
+
+    const hasSources = Object.keys(style.sources || {}).length > 0;
+
+    if (!hasSources) {
+      // No maps downloaded yet
+      spinner.style.display = 'none';
+      document.getElementById('overlay').style.display = 'flex';
+      return;
+    }
+
+    map.setStyle(style);
+
+    map.once('styledata', () => {
+      spinner.style.display = 'none';
+
+      // Show badge
+      const count = Object.keys(style.sources).length;
+      document.getElementById('badge-count').textContent = count;
+      document.getElementById('badge-s').textContent = count === 1 ? '' : 's';
+      document.getElementById('map-badge').style.display = 'block';
+    });
+
+  } catch (e) {
+    spinner.style.display = 'none';
+    document.getElementById('overlay').style.display = 'flex';
+    document.querySelector('.overlay-card h2').textContent = 'Map Load Error';
+    document.querySelector('.overlay-card p').textContent = e.message;
+  }
+}
+
+// ── Search (Nominatim — works when online) ──────────────────────────────────
+async function doSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  if (!q) return;
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`;
+    const data = await fetch(url, {
+      headers: { 'Accept-Language': 'en' },
+      signal: AbortSignal.timeout(6000),
+    }).then(r => r.json());
+
+    if (!data.length) {
+      alert('Place not found. (Search requires internet connection.)');
+      return;
+    }
+
+    const { lon, lat, display_name } = data[0];
+
+    // Drop a clean marker
+    if (searchMarker) searchMarker.remove();
+    const el = document.createElement('div');
+    el.className = 'search-marker';
+    searchMarker = new maplibregl.Marker({ element: el })
+      .setLngLat([+lon, +lat])
+      .setPopup(new maplibregl.Popup({ offset: 14 }).setText(display_name))
+      .addTo(map)
+      .togglePopup();
+
+    map.flyTo({ center: [+lon, +lat], zoom: 12, duration: 1200, essential: true });
+  } catch {
+    alert('Search requires internet connection.');
+  }
+}
+
+initMaps();
+</script>
+</body>
+</html>

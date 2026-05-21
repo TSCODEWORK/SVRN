@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVRN · AI Chat</title>
+<script src="/static/marked.min.js"></script>
+<style>
+:root {
+  --bg:#f0f0ee;--bg2:#ffffff;--bg3:#e8e8e5;--border:#d4d4d0;
+  --text:#3a3a3c;--dim:#8e8e93;--hi:#1c1c1e;--accent:#2f6fd4;
+  --green:#16a34a;--red:#dc2626;
+  --font:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;
+  --sidebar:280px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;}
+
+/* ── Layout ── */
+.layout{display:flex;height:100vh;}
+
+/* ── Sidebar ── */
+.sidebar{
+  width:var(--sidebar);flex-shrink:0;
+  background:var(--bg2);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.sidebar-top{padding:14px 12px 10px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.back-link{display:flex;align-items:center;gap:6px;color:var(--dim);text-decoration:none;font-size:12px;margin-bottom:10px;}
+.back-link:hover{color:var(--hi);}
+.new-chat-btn{
+  width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
+  background:var(--accent);color:#fff;border:none;border-radius:8px;
+  padding:10px;font-size:14px;font-weight:600;font-family:var(--font);cursor:pointer;
+  transition:opacity .15s;
+}
+.new-chat-btn:hover{opacity:.88;}
+.new-chat-btn svg{width:16px;height:16px;flex-shrink:0;}
+
+/* Session list */
+.session-list{flex:1;overflow-y:auto;padding:6px 8px;}
+.session-list::-webkit-scrollbar{width:4px;}
+.session-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.session-item{
+  display:flex;align-items:center;gap:6px;
+  padding:9px 10px;border-radius:8px;cursor:pointer;
+  position:relative;margin-bottom:2px;
+  transition:background .12s;
+}
+.session-item:hover{background:var(--bg3);}
+.session-item.active{background:var(--bg3);}
+.session-icon{color:var(--dim);flex-shrink:0;font-size:13px;}
+.session-info{flex:1;min-width:0;}
+.session-title{font-size:13px;font-weight:500;color:var(--hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.session-meta{font-size:11px;color:var(--dim);margin-top:1px;}
+.session-del{
+  opacity:0;background:none;border:none;padding:4px;cursor:pointer;
+  color:var(--dim);border-radius:4px;flex-shrink:0;transition:opacity .15s;
+}
+.session-item:hover .session-del{opacity:1;}
+.session-del:hover{color:var(--red);background:rgba(220,38,38,.1);}
+
+/* Sidebar bottom */
+.sidebar-bottom{padding:10px 12px;border-top:1px solid var(--border);flex-shrink:0;}
+.sidebar-btn{
+  width:100%;display:flex;align-items:center;gap:8px;padding:8px 10px;
+  background:none;border:1px solid var(--border);border-radius:7px;
+  color:var(--text);font-size:13px;font-family:var(--font);cursor:pointer;
+  margin-bottom:6px;text-align:left;transition:background .12s;
+}
+.sidebar-btn:hover{background:var(--bg3);}
+.sidebar-btn:last-child{margin-bottom:0;color:var(--red);border-color:rgba(220,38,38,.3);}
+.sidebar-btn:last-child:hover{background:rgba(220,38,38,.06);}
+
+/* ── Main area ── */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;}
+
+/* Header */
+.chat-header{
+  display:flex;align-items:center;gap:12px;padding:12px 20px;
+  border-bottom:1px solid var(--border);background:var(--bg2);
+  flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.05);
+}
+.badge-local{
+  background:#dcfce7;color:#15803d;border:1px solid #bbf7d0;
+  font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;
+  letter-spacing:.04em;white-space:nowrap;flex-shrink:0;
+}
+.session-title-edit{
+  flex:1;font-size:15px;font-weight:600;color:var(--hi);
+  background:none;border:none;outline:none;font-family:var(--font);
+  cursor:text;
+}
+.session-title-edit:focus{
+  background:var(--bg3);border-radius:6px;padding:2px 6px;
+}
+.model-select{
+  background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  color:var(--hi);font-family:var(--font);font-size:13px;
+  padding:5px 10px;outline:none;cursor:pointer;flex-shrink:0;
+}
+
+/* ── Messages ── */
+.messages{
+  flex:1;overflow-y:auto;padding:20px;
+  display:flex;flex-direction:column;gap:16px;
+}
+.messages::-webkit-scrollbar{width:5px;}
+.messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+/* Empty state */
+.empty-state{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;color:var(--dim);text-align:center;padding:40px;
+}
+.empty-icon{font-size:48px;opacity:.4;}
+.empty-title{font-size:18px;font-weight:600;color:var(--hi);}
+.empty-sub{font-size:14px;line-height:1.6;max-width:320px;}
+
+/* Message bubbles */
+.msg{display:flex;flex-direction:column;max-width:80%;}
+.msg.user{align-self:flex-end;}
+.msg.assistant{align-self:flex-start;}
+.msg-bubble{
+  padding:12px 16px;border-radius:14px;line-height:1.6;font-size:14px;
+}
+.msg.user .msg-bubble{
+  background:var(--accent);color:#fff;border-bottom-right-radius:4px;
+}
+.msg.assistant .msg-bubble{
+  background:var(--bg2);border:1px solid var(--border);
+  color:var(--text);border-bottom-left-radius:4px;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
+}
+.msg.assistant .msg-bubble *{max-width:100%;}
+.msg.assistant .msg-bubble pre{
+  background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  padding:10px 12px;overflow-x:auto;font-size:12.5px;margin:8px 0;
+}
+.msg.assistant .msg-bubble code{
+  background:var(--bg3);border-radius:3px;padding:1px 5px;font-size:12.5px;
+}
+.msg.assistant .msg-bubble pre code{background:none;padding:0;}
+.msg.assistant .msg-bubble p{margin:0 0 8px;}
+.msg.assistant .msg-bubble p:last-child{margin:0;}
+.msg.assistant .msg-bubble ul,
+.msg.assistant .msg-bubble ol{padding-left:20px;margin:6px 0;}
+.msg.assistant .msg-bubble h1,.msg.assistant .msg-bubble h2,.msg.assistant .msg-bubble h3{
+  font-size:15px;font-weight:700;margin:10px 0 6px;color:var(--hi);
+}
+
+/* File attachments in user messages */
+.msg-files{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;justify-content:flex-end;}
+.file-chip-msg{
+  background:rgba(255,255,255,.25);border-radius:6px;padding:4px 8px;
+  font-size:12px;color:#fff;display:flex;align-items:center;gap:4px;
+}
+.file-chip-msg img{height:40px;width:40px;object-fit:cover;border-radius:4px;}
+
+/* Sources */
+.msg-sources{margin-top:8px;font-size:12px;}
+.sources-toggle{
+  background:none;border:none;color:var(--accent);cursor:pointer;
+  font-size:12px;font-family:var(--font);padding:2px 0;text-decoration:underline;
+}
+.sources-list{margin-top:6px;display:none;flex-direction:column;gap:4px;}
+.sources-list.open{display:flex;}
+.source-item{
+  background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  padding:6px 10px;
+}
+.source-item a{color:var(--accent);text-decoration:none;font-weight:500;}
+.source-item a:hover{text-decoration:underline;}
+.source-item .source-name{color:var(--dim);font-size:11px;margin-bottom:2px;}
+
+/* Searching indicator */
+.msg-searching{
+  align-self:flex-start;display:flex;align-items:center;gap:8px;
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:10px 14px;color:var(--dim);font-size:13px;
+  box-shadow:0 1px 4px rgba(0,0,0,.05);
+}
+.dot-pulse{display:flex;gap:3px;}
+.dot-pulse span{
+  width:6px;height:6px;background:var(--dim);border-radius:50%;
+  animation:dotpulse 1.2s ease-in-out infinite;
+}
+.dot-pulse span:nth-child(2){animation-delay:.2s;}
+.dot-pulse span:nth-child(3){animation-delay:.4s;}
+@keyframes dotpulse{0%,80%,100%{opacity:.25}40%{opacity:1}}
+
+/* Typing cursor */
+.typing-cursor::after{content:'▌';animation:blink .7s step-end infinite;}
+@keyframes blink{50%{opacity:0}}
+
+/* ── Drop zone overlay ── */
+.drop-overlay{
+  position:absolute;inset:0;background:rgba(47,111,212,.08);
+  border:3px dashed var(--accent);border-radius:12px;
+  display:none;align-items:center;justify-content:center;
+  font-size:18px;font-weight:600;color:var(--accent);
+  z-index:100;pointer-events:none;
+}
+.drop-overlay.active{display:flex;}
+.messages-wrap{flex:1;position:relative;display:flex;flex-direction:column;overflow:hidden;}
+
+/* ── Input area ── */
+.input-area{
+  padding:12px 16px 14px;border-top:1px solid var(--border);
+  background:var(--bg2);flex-shrink:0;
+}
+.attached-files{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.file-chip{
+  display:flex;align-items:center;gap:6px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:20px;padding:4px 10px 4px 8px;
+  font-size:12px;color:var(--text);
+}
+.file-chip img{height:24px;width:24px;object-fit:cover;border-radius:3px;}
+.file-chip-name{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.file-chip-remove{
+  background:none;border:none;cursor:pointer;color:var(--dim);
+  padding:0;line-height:1;font-size:14px;flex-shrink:0;
+}
+.file-chip-remove:hover{color:var(--red);}
+.input-row{display:flex;align-items:flex-end;gap:8px;}
+.input-wrap{
+  flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:12px;
+  display:flex;align-items:flex-end;overflow:hidden;
+  transition:border-color .15s;
+}
+.input-wrap:focus-within{border-color:var(--accent);}
+#chat-input{
+  flex:1;background:none;border:none;outline:none;padding:10px 14px;
+  font-size:14px;font-family:var(--font);color:var(--hi);
+  resize:none;max-height:200px;line-height:1.5;
+}
+.input-actions{display:flex;align-items:center;gap:4px;padding:6px 8px;flex-shrink:0;}
+.icon-btn{
+  background:none;border:none;cursor:pointer;color:var(--dim);
+  padding:5px;border-radius:6px;transition:background .12s,color .12s;
+  display:flex;align-items:center;justify-content:center;
+}
+.icon-btn:hover{background:var(--border);color:var(--hi);}
+.icon-btn.active{color:var(--accent);background:rgba(47,111,212,.1);}
+.icon-btn svg{width:18px;height:18px;}
+.send-btn{
+  background:var(--accent);color:#fff;border:none;border-radius:10px;
+  padding:9px 18px;font-size:14px;font-weight:600;font-family:var(--font);
+  cursor:pointer;transition:opacity .15s;white-space:nowrap;flex-shrink:0;
+}
+.send-btn:hover{opacity:.88;}
+.send-btn:disabled{opacity:.4;cursor:not-allowed;}
+.input-hint{font-size:11px;color:var(--dim);margin-top:6px;text-align:center;}
+
+/* No vault warning */
+.no-vault{
+  background:#fef9c3;border:1px solid #fde047;border-radius:8px;
+  padding:10px 14px;font-size:13px;color:#854d0e;margin:12px 16px 0;
+  display:none;
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <a class="back-link" href="/">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path fill-rule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L4.862 9.25H16.25A.75.75 0 0 1 17 10Z" clip-rule="evenodd"/></svg>
+        Dashboard
+      </a>
+      <button class="new-chat-btn" onclick="newChat()">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/></svg>
+        New Chat
+      </button>
+    </div>
+
+    <div class="session-list" id="session-list">
+      <!-- Sessions rendered by JS -->
+    </div>
+
+    <div class="sidebar-bottom">
+      <button class="sidebar-btn" onclick="showModels()">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15"><path d="M10 1a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 1ZM5.05 3.05a.75.75 0 0 1 1.06 0l1.062 1.06A.75.75 0 1 1 6.11 5.173L5.05 4.11a.75.75 0 0 1 0-1.06ZM14.95 3.05a.75.75 0 0 1 0 1.06l-1.06 1.062a.75.75 0 0 1-1.062-1.061l1.061-1.06a.75.75 0 0 1 1.06 0ZM3 9.25a.75.75 0 0 0 0 1.5h1.5a.75.75 0 0 0 0-1.5H3ZM15.5 9.25a.75.75 0 0 0 0 1.5H17a.75.75 0 0 0 0-1.5h-1.5ZM5.05 14.95a.75.75 0 0 0 1.06 1.06l1.062-1.06a.75.75 0 0 0-1.061-1.062L5.05 14.95ZM13.888 13.888a.75.75 0 0 0-1.061 1.061l1.06 1.062a.75.75 0 0 0 1.062-1.06l-1.06-1.062ZM10 15.25a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0V16a.75.75 0 0 1 .75-.75ZM10 6.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/></svg>
+        Models &amp; Settings
+      </button>
+      <button class="sidebar-btn" onclick="clearAllHistory()">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15"><path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clip-rule="evenodd"/></svg>
+        Clear All History
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="no-vault" id="no-vault">
+      &#9888;&#65039; SVRNVAULT not connected — chat history will not be saved.
+    </div>
+
+    <!-- Header -->
+    <div class="chat-header">
+      <div class="badge-local">LOCAL AI</div>
+      <input class="session-title-edit" id="session-title-edit"
+             value="New Chat" onchange="renameSession(this.value)"
+             onblur="renameSession(this.value)" />
+      <select class="model-select" id="model-select">
+        <option value="">Loading models…</option>
+      </select>
+    </div>
+
+    <!-- Messages -->
+    <div class="messages-wrap" id="messages-wrap">
+      <div class="drop-overlay" id="drop-overlay">&#128206; Drop file to attach</div>
+      <div class="messages" id="messages">
+        <div class="empty-state" id="empty-state">
+          <div class="empty-icon">&#129302;</div>
+          <div class="empty-title">Start a conversation</div>
+          <div class="empty-sub">Ask anything. Your ZIM libraries are automatically searched to provide better answers.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input area -->
+    <div class="input-area">
+      <div class="attached-files" id="attached-files"></div>
+      <div class="input-row">
+        <div class="input-wrap">
+          <textarea id="chat-input" rows="1" placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
+                    onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+          <div class="input-actions">
+            <button class="icon-btn" id="deep-search-btn" title="Deep library search (slower but more thorough)"
+                    onclick="toggleDeepSearch()">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd"/></svg>
+            </button>
+            <label class="icon-btn" title="Attach file (PDF, image, text)">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M15.621 4.379a3 3 0 0 0-4.242 0l-7 7a1.5 1.5 0 0 0 2.122 2.121L14.122 6.5a.75.75 0 0 1 1.06 1.061l-7.621 7.621A3 3 0 0 1 3.439 10.94l7-7A4.5 4.5 0 0 1 16.682 10.06l-7.96 7.96A6 6 0 0 1 .318 9.561l7-7a7.5 7.5 0 0 1 10.607 10.607L12.5 18.5a.75.75 0 0 1-1.06-1.06l5.425-5.425a6 6 0 0 0 0-8.485Z" clip-rule="evenodd"/></svg>
+              <input type="file" style="display:none" multiple accept=".pdf,.txt,.md,.csv,.json,.html,.jpg,.jpeg,.png,.gif,.webp" onchange="handleFileInput(this)">
+            </label>
+          </div>
+        </div>
+        <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
+      </div>
+      <div class="input-hint">Enter to send · Shift+Enter for new line · Drop files anywhere</div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let currentSession = null;
+let attachedFiles  = [];   // [{filename, text, is_image, image_b64, preview_url}]
+let deepSearch     = false;
+let isStreaming    = false;
+let allModels      = [];
+
+// ── Init ──────────────────────────────────────────────────────────────────
+async function init() {
+  await loadModels();
+  await loadSessions();
+  // Check vault
+  try {
+    const r = await fetch('/api/vault').then(r => r.json());
+    if (!r.connected) document.getElementById('no-vault').style.display = 'block';
+  } catch {}
+}
+
+// ── Models ─────────────────────────────────────────────────────────────────
+async function loadModels() {
+  try {
+    const data = await fetch('/api/chat/models').then(r => r.json());
+    allModels = data.models || [];
+    const sel = document.getElementById('model-select');
+    if (!allModels.length) {
+      sel.innerHTML = '<option value="">No models — install from Library</option>';
+      return;
+    }
+    sel.innerHTML = allModels.map(m =>
+      `<option value="${m}" ${m === data.preferred ? 'selected' : ''}>${m}</option>`
+    ).join('');
+  } catch (e) {
+    document.getElementById('model-select').innerHTML = '<option value="">Ollama offline</option>';
+  }
+}
+
+function selectedModel() {
+  return document.getElementById('model-select').value;
+}
+
+function showModels() {
+  window.open('/library', '_blank');
+}
+
+// ── Sessions ───────────────────────────────────────────────────────────────
+async function loadSessions() {
+  try {
+    const sessions = await fetch('/api/chat/sessions').then(r => r.json());
+    renderSidebar(sessions);
+    if (sessions.length > 0) {
+      await loadSession(sessions[0].id);
+    } else {
+      await newChat();
+    }
+  } catch (e) {
+    await newChat();
+  }
+}
+
+function renderSidebar(sessions) {
+  const el = document.getElementById('session-list');
+  if (!sessions.length) {
+    el.innerHTML = '<div style="padding:20px 10px;color:var(--dim);font-size:13px;text-align:center;">No conversations yet</div>';
+    return;
+  }
+  el.innerHTML = sessions.map(s => `
+    <div class="session-item ${currentSession?.id === s.id ? 'active' : ''}"
+         id="si-${s.id}" onclick="loadSession('${s.id}')">
+      <span class="session-icon">&#128172;</span>
+      <div class="session-info">
+        <div class="session-title">${esc(s.title)}</div>
+        <div class="session-meta">${relTime(s.updated_at)} · ${s.message_count} msg${s.message_count !== 1 ? 's' : ''}</div>
+      </div>
+      <button class="session-del" onclick="event.stopPropagation();deleteSession('${s.id}')" title="Delete">&#10005;</button>
+    </div>
+  `).join('');
+}
+
+async function newChat() {
+  try {
+    const session = await fetch('/api/chat/session/new', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}).then(r => r.json());
+    currentSession = session;
+    attachedFiles = [];
+    renderAttachments();
+    renderMessages();
+    document.getElementById('session-title-edit').value = session.title;
+    await refreshSidebar();
+    document.getElementById('chat-input').focus();
+  } catch(e) {
+    // Offline — create local-only session
+    currentSession = {id: 'local-' + Date.now(), title: 'New Chat', messages: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString()};
+    renderMessages();
+  }
+}
+
+async function loadSession(id) {
+  try {
+    const session = await fetch(`/api/chat/session/${id}`).then(r => r.json());
+    if (!session.id) return;
+    currentSession = session;
+    renderMessages();
+    document.getElementById('session-title-edit').value = session.title;
+    await refreshSidebar();
+  } catch {}
+}
+
+async function refreshSidebar() {
+  try {
+    const sessions = await fetch('/api/chat/sessions').then(r => r.json());
+    renderSidebar(sessions);
+  } catch {}
+}
+
+async function saveSession() {
+  if (!currentSession || currentSession.id.startsWith('local-')) return;
+  currentSession.updated_at = new Date().toISOString();
+  try {
+    await fetch(`/api/chat/session/${currentSession.id}/save`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(currentSession),
+    });
+    await refreshSidebar();
+  } catch {}
+}
+
+async function deleteSession(id) {
+  if (!confirm('Delete this conversation?')) return;
+  try {
+    await fetch(`/api/chat/session/${id}/delete`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    if (currentSession?.id === id) {
+      await newChat();
+    } else {
+      await refreshSidebar();
+    }
+  } catch {}
+}
+
+async function clearAllHistory() {
+  if (!confirm('Delete ALL chat history? This cannot be undone.')) return;
+  const sessions = await fetch('/api/chat/sessions').then(r => r.json());
+  for (const s of sessions) {
+    await fetch(`/api/chat/session/${s.id}/delete`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+  }
+  await newChat();
+}
+
+function renameSession(title) {
+  if (!currentSession || !title.trim()) return;
+  currentSession.title = title.trim();
+  saveSession();
+}
+
+// ── Render messages ────────────────────────────────────────────────────────
+function renderMessages() {
+  const msgs = document.getElementById('messages');
+  const messages = currentSession?.messages || [];
+
+  if (!messages.length) {
+    msgs.innerHTML = '';
+    if (!document.getElementById('empty-state')) {
+      const e = document.createElement('div');
+      e.className = 'empty-state';
+      e.id = 'empty-state';
+      e.innerHTML = `<div class="empty-icon">&#129302;</div><div class="empty-title">Start a conversation</div><div class="empty-sub">Ask anything. Your ZIM libraries are automatically searched to provide better answers.</div>`;
+      msgs.appendChild(e);
+    }
+    return;
+  }
+
+  msgs.innerHTML = messages.map((m, i) => renderMsg(m, i)).join('');
+  scrollToBottom();
+}
+
+function renderMsg(m, idx) {
+  const isUser = m.role === 'user';
+  const content = isUser ? esc(m.content) : renderMarkdown(m.content || '');
+
+  let filesHtml = '';
+  if (m.files && m.files.length) {
+    filesHtml = `<div class="msg-files">` + m.files.map(f => {
+      if (f.is_image && f.preview) return `<div class="file-chip-msg"><img src="${f.preview}" alt="${esc(f.filename)}"></div>`;
+      return `<div class="file-chip-msg">&#128196; ${esc(f.filename)}</div>`;
+    }).join('') + `</div>`;
+  }
+
+  let sourcesHtml = '';
+  if (!isUser && m.sources && m.sources.length) {
+    sourcesHtml = `<div class="msg-sources">
+      <button class="sources-toggle" onclick="toggleSources(this)">&#128218; ${m.sources.length} source${m.sources.length > 1 ? 's' : ''} used</button>
+      <div class="sources-list">
+        ${m.sources.map(s => `
+          <div class="source-item">
+            <div class="source-name">${esc(s.source)}</div>
+            <a href="${s.url}" target="_blank">${esc(s.title)}</a>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  return `
+    <div class="msg ${m.role}" id="msg-${idx}">
+      ${filesHtml}
+      <div class="msg-bubble">${content}</div>
+      ${sourcesHtml}
+    </div>`;
+}
+
+function toggleSources(btn) {
+  const list = btn.nextElementSibling;
+  list.classList.toggle('open');
+}
+
+// ── Send message ──────────────────────────────────────────────────────────
+async function sendMessage() {
+  if (isStreaming) return;
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text && !attachedFiles.length) return;
+
+  isStreaming = true;
+  document.getElementById('send-btn').disabled = true;
+  input.value = '';
+  autoResize(input);
+
+  // Make sure we have a session
+  if (!currentSession) await newChat();
+
+  // Remove empty state
+  document.getElementById('empty-state')?.remove();
+
+  // Build user message
+  const userMsg = {
+    role: 'user',
+    content: text,
+    timestamp: new Date().toISOString(),
+    files: attachedFiles.map(f => ({filename: f.filename, is_image: f.is_image, preview: f.preview_url})),
+    images: attachedFiles.filter(f => f.is_image).map(f => f.image_b64),
+  };
+
+  // Auto-title on first message
+  if (currentSession.messages.length === 0 && currentSession.title === 'New Chat') {
+    currentSession.title = text.slice(0, 45) + (text.length > 45 ? '…' : '');
+    document.getElementById('session-title-edit').value = currentSession.title;
+  }
+
+  currentSession.messages.push(userMsg);
+  renderMessages();
+
+  // Show "Searching library..." indicator
+  const searchingEl = document.createElement('div');
+  searchingEl.className = 'msg-searching';
+  searchingEl.id = 'searching-indicator';
+  searchingEl.innerHTML = `<div class="dot-pulse"><span></span><span></span><span></span></div> Searching library…`;
+  document.getElementById('messages').appendChild(searchingEl);
+  scrollToBottom();
+
+  // ZIM search for RAG
+  let ragContext = [];
+  try {
+    const sr = await fetch('/api/chat/search-zim', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({query: text, deep: deepSearch}),
+    }).then(r => r.json());
+    ragContext = sr.results || [];
+  } catch {}
+
+  document.getElementById('searching-indicator')?.remove();
+
+  // Start assistant message
+  const assistantMsg = {
+    role: 'assistant',
+    content: '',
+    timestamp: new Date().toISOString(),
+    sources: ragContext,
+  };
+  currentSession.messages.push(assistantMsg);
+  const msgIdx = currentSession.messages.length - 1;
+
+  // Add streaming bubble
+  const msgs = document.getElementById('messages');
+  const bubble = document.createElement('div');
+  bubble.className = 'msg assistant';
+  bubble.id = `msg-${msgIdx}`;
+  const bubbleInner = document.createElement('div');
+  bubbleInner.className = 'msg-bubble typing-cursor';
+  bubble.appendChild(bubbleInner);
+  msgs.appendChild(bubble);
+  scrollToBottom();
+
+  // Build messages for API (without raw file data)
+  const apiMessages = currentSession.messages.slice(0, -1).map(m => ({
+    role: m.role,
+    content: m.content,
+    images: m.images || [],
+  }));
+
+  try {
+    const resp = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        model: selectedModel(),
+        messages: apiMessages,
+        rag_context: ragContext,
+        attached_files: attachedFiles.map(f => ({
+          filename: f.filename,
+          text: f.text || '',
+          is_image: f.is_image,
+          image_b64: f.image_b64 || '',
+        })),
+      }),
+    });
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, {stream: true});
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const payload = line.slice(6);
+        if (payload === '[DONE]') break;
+        try {
+          const {text} = JSON.parse(payload);
+          assistantMsg.content += text;
+          bubbleInner.innerHTML = renderMarkdown(assistantMsg.content);
+          scrollToBottom();
+        } catch {}
+      }
+    }
+  } catch (e) {
+    assistantMsg.content = `Error: ${e.message}`;
+    bubbleInner.innerHTML = esc(assistantMsg.content);
+  }
+
+  // Finalize bubble
+  bubbleInner.classList.remove('typing-cursor');
+  // Re-render this message with sources
+  bubble.outerHTML = renderMsg(assistantMsg, msgIdx);
+
+  // Clear attachments
+  attachedFiles = [];
+  renderAttachments();
+
+  // Save session
+  await saveSession();
+
+  isStreaming = false;
+  document.getElementById('send-btn').disabled = false;
+  input.focus();
+}
+
+// ── File handling ──────────────────────────────────────────────────────────
+async function handleFileInput(input) {
+  for (const file of input.files) {
+    await processFile(file);
+  }
+  input.value = '';
+}
+
+async function processFile(file) {
+  const data = await readFileAsBase64(file);
+  const isImage = file.type.startsWith('image/');
+  let preview_url = null;
+  if (isImage) preview_url = URL.createObjectURL(file);
+
+  try {
+    const result = await fetch('/api/chat/upload', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({data, filename: file.name, mime: file.type}),
+    }).then(r => r.json());
+
+    attachedFiles.push({
+      filename: file.name,
+      text: result.text || '',
+      is_image: result.is_image,
+      image_b64: result.is_image ? data : '',
+      preview_url,
+    });
+    renderAttachments();
+  } catch(e) {
+    alert(`Could not process ${file.name}: ${e.message}`);
+  }
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderAttachments() {
+  const el = document.getElementById('attached-files');
+  el.innerHTML = attachedFiles.map((f, i) => `
+    <div class="file-chip">
+      ${f.is_image && f.preview_url ? `<img src="${f.preview_url}" alt="">` : '&#128196;'}
+      <span class="file-chip-name">${esc(f.filename)}</span>
+      <button class="file-chip-remove" onclick="removeFile(${i})">&#10005;</button>
+    </div>
+  `).join('');
+}
+
+function removeFile(i) {
+  attachedFiles.splice(i, 1);
+  renderAttachments();
+}
+
+// ── Drag & drop ──────────────────────────────────────────────────────────
+const wrap = document.getElementById('messages-wrap');
+wrap.addEventListener('dragover', e => { e.preventDefault(); document.getElementById('drop-overlay').classList.add('active'); });
+wrap.addEventListener('dragleave', e => { if (!wrap.contains(e.relatedTarget)) document.getElementById('drop-overlay').classList.remove('active'); });
+wrap.addEventListener('drop', async e => {
+  e.preventDefault();
+  document.getElementById('drop-overlay').classList.remove('active');
+  for (const file of e.dataTransfer.files) await processFile(file);
+});
+
+// ── Deep search toggle ─────────────────────────────────────────────────────
+function toggleDeepSearch() {
+  deepSearch = !deepSearch;
+  document.getElementById('deep-search-btn').classList.toggle('active', deepSearch);
+  document.getElementById('deep-search-btn').title = deepSearch
+    ? 'Deep search ON (thorough, slower) — click to disable'
+    : 'Deep library search (slower but more thorough)';
+}
+
+// ── Keyboard ──────────────────────────────────────────────────────────────
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoResize(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function scrollToBottom() {
+  const el = document.getElementById('messages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderMarkdown(text) {
+  if (typeof marked !== 'undefined') {
+    return marked.parse(text);
+  }
+  // Simple fallback
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/`(.+?)`/g,'<code>$1</code>')
+    .replace(/\n/g,'<br>');
+}
+
+function relTime(iso) {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso + 'Z').getTime();
+  if (diff < 60000) return 'just now';
+  if (diff < 3600000) return Math.floor(diff/60000) + 'm ago';
+  if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
+  return Math.floor(diff/86400000) + 'd ago';
+}
+
+init();
+</script>
+</body>
+</html>

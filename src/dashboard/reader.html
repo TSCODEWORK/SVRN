@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVRN · Reader</title>
+<style>
+:root {
+  /* Warm light palette */
+  --bg:     #f5f1eb;
+  --paper:  #fdfaf5;
+  --panel:  #ffffff;
+  --nav:    #ede8df;
+  --hdr:    #e8e2d8;
+  --line:   #ddd7cc;
+  --line-l: #e8e3da;
+
+  /* Text */
+  --t1: #231f1a;
+  --t2: #6b6560;
+  --t3: #a09990;
+
+  /* Accent — muted steel blue */
+  --a:   #4e6fa3;
+  --a-h: #3a5a8a;
+
+  /* Chat bubbles */
+  --ub: #4a6b9e;
+  --ab: #f0ebe3;
+
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI',
+          Helvetica, Arial, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: var(--bg);
+             color: var(--t1); font-family: var(--font); }
+
+/* ── APP HEADER ─────────────────────────────────── */
+.app-hdr {
+  height: 52px;
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 20px;
+  background: var(--hdr);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 6px rgba(35,31,26,.07);
+  flex-shrink: 0; position: relative; z-index: 50;
+}
+.back-btn {
+  display: flex; align-items: center; gap: 6px;
+  text-decoration: none; color: var(--t2); font-size: 13px;
+  padding: 5px 12px; border-radius: 8px;
+  border: 1px solid var(--line); background: rgba(255,255,255,.55);
+  transition: background .14s, color .14s; white-space: nowrap; flex-shrink: 0;
+}
+.back-btn:hover { background: rgba(255,255,255,.9); color: var(--t1); }
+.site-word {
+  font-size: 11px; font-weight: 700; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--t3); flex: 1; text-align: center;
+}
+.zim-badge {
+  background: rgba(255,255,255,.55); border: 1px solid var(--line);
+  border-radius: 20px; padding: 4px 14px;
+  font-size: 12px; color: var(--t2);
+  max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── SPLIT ──────────────────────────────────────── */
+.split {
+  display: flex;
+  height: calc(100vh - 52px);
+  overflow: hidden;
+}
+
+/* ── LEFT — ARTICLE PANE ────────────────────────── */
+.art-pane {
+  flex: 1; display: flex; flex-direction: column;
+  border-right: 1px solid var(--line);
+  min-width: 0; background: var(--paper);
+}
+
+/* Document navigation bar */
+.doc-nav {
+  height: 44px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 2px;
+  padding: 0 8px 0 4px;
+  background: var(--nav);
+  border-bottom: 1px solid var(--line);
+}
+.nb {
+  width: 32px; height: 32px; border: none; border-radius: 7px;
+  background: none; color: var(--t2); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .12s, color .12s; flex-shrink: 0;
+}
+.nb:hover:not(:disabled) { background: rgba(0,0,0,.08); color: var(--t1); }
+.nb:disabled { opacity: .28; cursor: default; }
+.nb svg { width: 16px; height: 16px; }
+.n-sep { width: 1px; height: 22px; background: var(--line); margin: 0 5px; flex-shrink: 0; }
+.home-nb {
+  display: flex; align-items: center; gap: 5px;
+  border: none; border-radius: 7px; background: none;
+  color: var(--t2); font-size: 12px; font-family: var(--font);
+  padding: 0 9px; height: 32px; cursor: pointer;
+  transition: background .12s, color .12s; flex-shrink: 0; white-space: nowrap;
+}
+.home-nb:hover { background: rgba(0,0,0,.08); color: var(--t1); }
+.home-nb svg { width: 13px; height: 13px; }
+.breadcrumb {
+  flex: 1; display: flex; align-items: center; gap: 2px;
+  overflow: hidden; min-width: 0; padding: 0 4px; font-size: 13px;
+}
+.crumb {
+  color: var(--a); cursor: pointer;
+  padding: 3px 8px; border-radius: 5px;
+  white-space: nowrap; max-width: 200px;
+  overflow: hidden; text-overflow: ellipsis;
+  transition: background .12s; flex-shrink: 1;
+}
+.crumb:hover { background: rgba(78,111,163,.13); }
+.crumb.now { color: var(--t1); font-weight: 600; cursor: default; }
+.crumb.now:hover { background: none; }
+.csep { color: var(--t3); font-size: 11px; flex-shrink: 0; margin: 0 1px; }
+
+/* ZIM iframe */
+.zim-frame { flex: 1; border: none; background: var(--paper); min-height: 0; }
+
+/* ── RIGHT — CHAT PANE ──────────────────────────── */
+.chat-pane {
+  width: 50%; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  background: var(--panel); min-width: 0;
+}
+.chat-hdr {
+  height: 44px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 16px;
+  background: var(--nav);
+  border-bottom: 1px solid var(--line);
+}
+.ai-tag {
+  font-size: 10px; font-weight: 700; letter-spacing: .13em;
+  text-transform: uppercase; color: var(--t3); flex-shrink: 0;
+}
+.ctx-pill {
+  font-size: 12px; color: var(--t2);
+  background: rgba(255,255,255,.7); border: 1px solid var(--line-l);
+  border-radius: 20px; padding: 3px 11px;
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.model-sel {
+  background: rgba(255,255,255,.7); border: 1px solid var(--line);
+  border-radius: 7px; padding: 5px 7px; font-size: 12px;
+  color: var(--t1); font-family: var(--font); cursor: pointer;
+  outline: none; max-width: 130px; flex-shrink: 0;
+}
+.model-sel:focus { border-color: var(--a); }
+
+/* Messages */
+.msgs {
+  flex: 1; overflow-y: auto; min-height: 0;
+  padding: 28px 22px;
+  display: flex; flex-direction: column; gap: 16px;
+  scroll-behavior: smooth;
+}
+.msgs::-webkit-scrollbar { width: 5px; }
+.msgs::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+
+/* Empty state */
+.empty-st {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; padding: 52px 36px; color: var(--t3);
+}
+.empty-st .e-icon { font-size: 46px; margin-bottom: 16px; opacity: .45; }
+.empty-st p { font-size: 16px; line-height: 1.7; max-width: 270px; }
+.empty-st .e-hint { font-size: 13px; margin-top: 10px; opacity: .85; }
+
+/* Message rows */
+.msg { display: flex; max-width: 100%; }
+.msg.user { justify-content: flex-end; }
+
+/* Bubbles */
+.bubble {
+  padding: 14px 18px; border-radius: 18px;
+  font-size: 16px; line-height: 1.72;
+  max-width: 88%; word-break: break-word;
+}
+.user-b {
+  background: var(--ub); color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.ai-b {
+  background: var(--ab); color: var(--t1);
+  border: 1px solid var(--line-l);
+  border-bottom-left-radius: 4px;
+}
+
+/* Markdown in AI bubble */
+.btext h1,.btext h2,.btext h3 {
+  margin: .6em 0 .3em; color: var(--t1); font-size: 1.08em; font-weight: 700;
+}
+.btext p { margin: .45em 0; }
+.btext p:first-child { margin-top: 0; }
+.btext p:last-child  { margin-bottom: 0; }
+.btext ul,.btext ol { padding-left: 1.5em; margin: .4em 0; }
+.btext li { margin: .28em 0; }
+.btext code {
+  background: rgba(0,0,0,.08); padding: 2px 6px; border-radius: 4px;
+  font-size: .88em; font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace;
+}
+.btext pre {
+  background: rgba(0,0,0,.08); padding: 14px; border-radius: 8px;
+  overflow-x: auto; margin: .6em 0;
+}
+.btext pre code { background: none; padding: 0; font-size: .9em; }
+.btext a { color: var(--a); }
+.btext strong { font-weight: 700; }
+.btext table { border-collapse: collapse; margin: .6em 0; font-size: .95em; }
+.btext th,.btext td { border: 1px solid var(--line); padding: 6px 10px; }
+.btext th { background: rgba(0,0,0,.05); font-weight: 600; }
+
+/* Typing indicator */
+.typing { display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; }
+.typing span {
+  display: inline-block; width: 7px; height: 7px;
+  border-radius: 50%; background: var(--t3);
+  animation: blink 1.3s infinite ease-in-out;
+}
+.typing span:nth-child(2) { animation-delay: .16s; }
+.typing span:nth-child(3) { animation-delay: .32s; }
+@keyframes blink {
+  0%,80%,100% { opacity: .3; transform: scale(.78); }
+  40%         { opacity: 1;  transform: scale(1);   }
+}
+
+/* Searching */
+.searching {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 13px; color: var(--t3); padding: 2px 0;
+}
+.dots { display: flex; gap: 4px; }
+.dots span {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--t3);
+  animation: blink 1.3s infinite ease-in-out;
+}
+.dots span:nth-child(2) { animation-delay: .16s; }
+.dots span:nth-child(3) { animation-delay: .32s; }
+
+/* Sources */
+.src-toggle {
+  margin-top: 11px; font-size: 12px; color: var(--a);
+  cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+  user-select: none; opacity: .85;
+}
+.src-toggle:hover { opacity: 1; }
+.src-toggle svg { transition: transform .2s; }
+.src-toggle.open svg { transform: rotate(180deg); }
+.src-list { margin-top: 8px; display: none; }
+.src-list.open { display: block; }
+.src-item {
+  padding: 8px 11px; border-radius: 7px;
+  background: rgba(0,0,0,.045); margin-top: 5px;
+  border-left: 2.5px solid var(--a);
+}
+.src-name { font-size: 13px; font-weight: 600; color: var(--a); cursor: pointer; }
+.src-name:hover { text-decoration: underline; }
+.src-exc { font-size: 12px; color: var(--t2); margin-top: 3px; line-height: 1.45; }
+
+/* ── CHAT INPUT ─────────────────────────────────── */
+.input-wrap {
+  padding: 14px 16px 13px;
+  border-top: 1px solid var(--line);
+  background: var(--panel); flex-shrink: 0;
+}
+.input-row { display: flex; gap: 10px; align-items: flex-end; }
+.chat-ta {
+  flex: 1; resize: none;
+  border: 1.5px solid var(--line); border-radius: 12px;
+  padding: 12px 15px;
+  font-family: var(--font); font-size: 15px; line-height: 1.55;
+  color: var(--t1); background: var(--bg);
+  outline: none; min-height: 48px; max-height: 140px;
+  transition: border-color .15s;
+}
+.chat-ta:focus { border-color: var(--a); }
+.chat-ta::placeholder { color: var(--t3); }
+.send-btn {
+  width: 48px; height: 48px; border: none; border-radius: 12px;
+  background: var(--a); color: #fff; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, transform .1s;
+}
+.send-btn:hover { background: var(--a-h); }
+.send-btn:active { transform: scale(.93); }
+.send-btn svg { width: 20px; height: 20px; }
+.input-hint { font-size: 11px; color: var(--t3); text-align: right; margin-top: 7px; }
+</style>
+</head>
+<body>
+
+<!-- App header -->
+<header class="app-hdr">
+  <a class="back-btn" href="/library">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M9.5 2.5L5 7l4.5 4.5" stroke="currentColor" stroke-width="1.7"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Library
+  </a>
+  <div class="site-word">SVRN · READER</div>
+  <div class="zim-badge" id="zim-badge">—</div>
+</header>
+
+<!-- Split view -->
+<div class="split">
+
+  <!-- LEFT: Article -->
+  <div class="art-pane">
+    <div class="doc-nav">
+      <button class="nb" id="btn-back" disabled title="Back" onclick="histBack()">
+        <svg viewBox="0 0 16 16" fill="none">
+          <path d="M10.5 3L5 8l5.5 5" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button class="nb" id="btn-fwd" disabled title="Forward" onclick="histFwd()">
+        <svg viewBox="0 0 16 16" fill="none">
+          <path d="M5.5 3L11 8l-5.5 5" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+
+      <div class="n-sep"></div>
+
+      <button class="home-nb" onclick="histHome()" title="Main article">
+        <svg viewBox="0 0 14 14" fill="none">
+          <path d="M2 7l5-5 5 5v5.5H9V9H5v3.5H2V7z" stroke="currentColor"
+                stroke-width="1.4" stroke-linejoin="round"/>
+        </svg>
+        Home
+      </button>
+
+      <div class="n-sep"></div>
+
+      <div class="breadcrumb" id="breadcrumb">
+        <span class="crumb now">Loading…</span>
+      </div>
+    </div>
+
+    <iframe id="zim-frame" class="zim-frame"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+      src="about:blank">
+    </iframe>
+  </div>
+
+  <!-- RIGHT: Chat -->
+  <div class="chat-pane">
+    <div class="chat-hdr">
+      <span class="ai-tag">AI ASSISTANT</span>
+      <span class="ctx-pill" id="ctx-pill">Loading article…</span>
+      <select class="model-sel" id="model-sel" title="Model"></select>
+    </div>
+
+    <div class="msgs" id="msgs">
+      <div class="empty-st" id="empty-st">
+        <div class="e-icon">📖</div>
+        <p>Ask anything about what you're reading.</p>
+        <p class="e-hint">I can read the full text of the current article and search the whole library.</p>
+      </div>
+    </div>
+
+    <div class="input-wrap">
+      <div class="input-row">
+        <textarea id="chat-ta" class="chat-ta"
+          placeholder="Ask about this article…"
+          rows="1"
+          onkeydown="onKey(event)"
+          oninput="autoResize(this)"></textarea>
+        <button class="send-btn" onclick="doSend()">
+          <svg viewBox="0 0 20 20" fill="none">
+            <path d="M10 16V4M4 10l6-6 6 6" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="input-hint">Enter to send · Shift+Enter for newline</div>
+    </div>
+  </div>
+
+</div>
+
+<script src="/static/marked.min.js"></script>
+<script>
+// ── URL params ───────────────────────────────────────────────────────────────
+const SP       = new URLSearchParams(location.search);
+const zimName  = SP.get('zim') || '';
+const initPath = SP.get('path') || '';
+
+// ── State ────────────────────────────────────────────────────────────────────
+let hist      = [];    // [{path, title}]
+let hIdx      = -1;
+let expecting = false; // true when WE set iframe.src
+let curPath   = '';
+let curTitle  = '';
+let artText   = '';    // plain text of current article
+let streaming = false;
+let chatLog   = [];
+let model     = '';
+
+// ── DOM refs ─────────────────────────────────────────────────────────────────
+const frame    = document.getElementById('zim-frame');
+const btnBack  = document.getElementById('btn-back');
+const btnFwd   = document.getElementById('btn-fwd');
+const crumbEl  = document.getElementById('breadcrumb');
+const ctxPill  = document.getElementById('ctx-pill');
+const msgsEl   = document.getElementById('msgs');
+const emptyEl  = document.getElementById('empty-st');
+const inputEl  = document.getElementById('chat-ta');
+const modelSel = document.getElementById('model-sel');
+const zimBadge = document.getElementById('zim-badge');
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+async function init() {
+  if (!zimName) {
+    document.body.innerHTML =
+      '<div style="padding:80px;text-align:center;font-size:18px;color:#999">' +
+      'No library specified. <a href="/library">← Library</a></div>';
+    return;
+  }
+  // Nice display name — strip locale/date suffix
+  const nice = zimName
+    .replace(/_[a-z]{2,3}_all_\d{4}-\d{2}$/, '')
+    .replace(/_\d{4}-\d{2}$/, '')
+    .replace(/_/g, ' ')
+    .trim();
+  zimBadge.textContent = nice;
+  document.title = 'Reader · ' + nice;
+
+  await loadModels();
+  navigate(initPath, true);
+}
+
+// ── Navigation ───────────────────────────────────────────────────────────────
+function navigate(path, push) {
+  expecting = true;
+  if (push) {
+    hist = hist.slice(0, hIdx + 1);
+    hist.push({ path: path, title: '…' });
+    hIdx = hist.length - 1;
+  }
+  curPath   = path;
+  frame.src = 'http://localhost:8888/zim/' + encodeURIComponent(zimName) +
+              '/' + path + '?e=1';
+  updateNavBtns();
+  renderCrumb();
+  ctxPill.textContent = '…';
+}
+
+function histBack()  { if (hIdx > 0)                  { hIdx--; navigate(hist[hIdx].path, false); } }
+function histFwd()   { if (hIdx < hist.length - 1)    { hIdx++; navigate(hist[hIdx].path, false); } }
+function histHome()  { if (hist.length > 0)            { hIdx = 0; navigate(hist[0].path, false); } }
+
+// ── postMessage from ZIM iframe ──────────────────────────────────────────────
+window.addEventListener('message', function(e) {
+  if (!e.data || e.data.type !== 'zim-nav') return;
+  var path  = e.data.path  || '';
+  var title = e.data.title || path;
+
+  if (expecting) {
+    expecting = false;
+    if (hIdx >= 0) {
+      hist[hIdx].path  = path;   // actual path after server redirect resolution
+      hist[hIdx].title = title;
+    }
+  } else {
+    // User clicked a hyperlink inside the ZIM
+    hist = hist.slice(0, hIdx + 1);
+    hist.push({ path: path, title: title });
+    hIdx = hist.length - 1;
+  }
+
+  curPath  = path;
+  curTitle = title;
+  updateNavBtns();
+  renderCrumb();
+  ctxPill.textContent = title || path || '—';
+  fetchArtText(path);
+});
+
+function updateNavBtns() {
+  btnBack.disabled = hIdx <= 0;
+  btnFwd.disabled  = hIdx >= hist.length - 1;
+}
+
+function renderCrumb() {
+  crumbEl.innerHTML = '';
+  if (!hist.length) return;
+  var start = Math.max(0, hIdx - 3);
+  for (var i = start; i <= Math.min(hIdx, hist.length - 1); i++) {
+    if (i > start) {
+      var sep = document.createElement('span');
+      sep.className = 'csep';
+      sep.textContent = '›';
+      crumbEl.appendChild(sep);
+    }
+    var el  = document.createElement('span');
+    var cur = (i === hIdx);
+    el.className   = cur ? 'crumb now' : 'crumb';
+    el.textContent = hist[i].title || hist[i].path || '…';
+    el.title       = hist[i].path;
+    if (!cur) {
+      (function(snap) {
+        el.onclick = function() { hIdx = snap; navigate(hist[snap].path, false); };
+      })(i);
+    }
+    crumbEl.appendChild(el);
+  }
+}
+
+// ── Article text for AI context ──────────────────────────────────────────────
+async function fetchArtText(path) {
+  artText = '';
+  if (!path) return;
+  try {
+    var r = await fetch(
+      '/api/reader/article?zim=' + encodeURIComponent(zimName) +
+      '&path=' + encodeURIComponent(path)
+    );
+    if (r.ok) artText = (await r.json()).text || '';
+  } catch (_) {}
+}
+
+// ── Models ───────────────────────────────────────────────────────────────────
+async function loadModels() {
+  try {
+    var r = await fetch('/api/chat/models');
+    if (!r.ok) return;
+    var d = await r.json();
+    modelSel.innerHTML = (d.models || []).map(function(m) {
+      return '<option value="' + esc(m) + '">' +
+             esc(m.replace(':latest', '')) + '</option>';
+    }).join('');
+    if (d.preferred) modelSel.value = d.preferred;
+    model = modelSel.value;
+  } catch (_) {}
+  modelSel.onchange = function() { model = modelSel.value; };
+}
+
+// ── Send message ─────────────────────────────────────────────────────────────
+async function doSend() {
+  var txt = inputEl.value.trim();
+  if (!txt || streaming) return;
+
+  inputEl.value = '';
+  autoResize(inputEl);
+  streaming = true;
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  chatLog.push({ role: 'user', content: txt });
+  addUserMsg(txt);
+
+  // Search ZIM libraries for relevant context
+  var searchEl = addSearching();
+  var rag = [];
+  try {
+    var sr = await fetch('/api/chat/search-zim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: txt })
+    });
+    if (sr.ok) {
+      var sd = await sr.json();
+      rag = Array.isArray(sd) ? sd : (sd.results || sd.context || []);
+    }
+  } catch (_) {}
+  searchEl.remove();
+
+  // Stream AI response
+  var aiBub = addAssistant();
+  var full  = '';
+  try {
+    var resp = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages:      chatLog,
+        model:         model || modelSel.value,
+        rag_context:   rag,
+        article_zim:   zimName,
+        article_path:  curPath,
+        article_title: curTitle,
+        article_text:  artText.slice(0, 6000),
+      })
+    });
+
+    var reader = resp.body.getReader();
+    var dec    = new TextDecoder();
+    var buf    = '';
+    while (true) {
+      var chunk = await reader.read();
+      if (chunk.done) break;
+      buf += dec.decode(chunk.value, { stream: true });
+      var lines = buf.split('\n');
+      buf = lines.pop();
+      for (var li = 0; li < lines.length; li++) {
+        var line = lines[li];
+        if (!line.startsWith('data: ')) continue;
+        try {
+          var d = JSON.parse(line.slice(6));
+          if (d.text) {
+            full += d.text;
+            aiBub.querySelector('.btext').innerHTML = renderMd(full);
+            msgsEl.scrollTop = msgsEl.scrollHeight;
+          }
+        } catch (_) {}
+      }
+    }
+  } catch (err) {
+    aiBub.querySelector('.btext').textContent =
+      'Could not reach AI. Is Ollama running?';
+  }
+
+  aiBub.querySelector('.btext').innerHTML = renderMd(full);
+  chatLog.push({ role: 'assistant', content: full });
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+  streaming = false;
+}
+
+// ── Message builders ─────────────────────────────────────────────────────────
+function addUserMsg(txt) {
+  var d = mk('div', 'msg user');
+  d.innerHTML = '<div class="bubble user-b">' + esc(txt) + '</div>';
+  msgsEl.appendChild(d);
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+
+function addAssistant() {
+  var d = mk('div', 'msg ai');
+  d.innerHTML =
+    '<div class="bubble ai-b">' +
+      '<span class="btext">' +
+        '<span class="typing"><span></span><span></span><span></span></span>' +
+      '</span>' +
+    '</div>';
+  msgsEl.appendChild(d);
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+  return d;
+}
+
+function addSearching() {
+  var d = mk('div', 'searching');
+  d.innerHTML =
+    '<span class="dots"><span></span><span></span><span></span></span> ' +
+    'Searching library…';
+  msgsEl.appendChild(d);
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+  return d;
+}
+
+// ── Markdown & utils ─────────────────────────────────────────────────────────
+function renderMd(txt) {
+  if (window.marked) {
+    marked.setOptions({ breaks: true, gfm: true });
+    return marked.parse(txt);
+  }
+  return esc(txt).replace(/\n/g, '<br>');
+}
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function mk(tag, cls) {
+  var el = document.createElement(tag);
+  if (cls) el.className = cls;
+  return el;
+}
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+}
+function onKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
+}
+
+// ── Start ────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

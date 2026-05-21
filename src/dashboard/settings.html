@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVRN · Settings</title>
+<style>
+:root {
+  --bg:#f0f0ee; --bg2:#ffffff; --bg3:#e8e8e5; --border:#d4d4d0;
+  --text:#3a3a3c; --dim:#8e8e93; --hi:#1c1c1e; --accent:#2f6fd4;
+  --green:#16a34a; --red:#dc2626; --amber:#d97706;
+  --font:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono','SF Mono','Fira Code',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;}
+
+header{
+  display:flex;align-items:center;gap:16px;padding:12px 24px;
+  border-bottom:1px solid var(--border);background:var(--bg2);
+  position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.06);
+}
+.back{color:var(--dim);text-decoration:none;font-size:13px;}
+.back:hover{color:var(--hi);}
+.page-title{font-size:16px;font-weight:700;letter-spacing:.08em;color:var(--hi);}
+.hdr-actions{margin-left:auto;display:flex;gap:10px;align-items:center;}
+.save-toast{
+  font-size:13px;color:var(--green);font-weight:600;
+  opacity:0;transition:opacity .3s;
+}
+.save-toast.show{opacity:1;}
+
+.btn{
+  font-family:var(--font);font-size:13px;font-weight:500;
+  padding:8px 20px;border-radius:7px;border:1px solid var(--border);
+  cursor:pointer;background:var(--bg3);color:var(--text);
+  transition:background .12s;
+}
+.btn:hover{background:var(--border);}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+.btn.primary:hover{opacity:.88;}
+.btn.danger{color:var(--red);border-color:rgba(220,38,38,.3);}
+.btn.danger:hover{background:var(--red);color:#fff;border-color:var(--red);}
+
+main{max-width:720px;margin:0 auto;padding:40px 24px;}
+
+.section{
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  margin-bottom:28px;overflow:hidden;
+}
+.section-hdr{
+  padding:16px 22px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;
+}
+.section-icon{font-size:18px;}
+.section-title{font-size:15px;font-weight:700;color:var(--hi);}
+.section-desc{font-size:12px;color:var(--dim);margin-top:2px;}
+
+.field{
+  padding:16px 22px;border-bottom:1px solid var(--border);
+  display:flex;align-items:flex-start;gap:20px;
+}
+.field:last-child{border-bottom:none;}
+.field-info{flex:1;min-width:0;}
+.field-label{font-size:14px;font-weight:600;color:var(--hi);}
+.field-hint{font-size:12px;color:var(--dim);margin-top:4px;line-height:1.5;}
+.field-control{flex-shrink:0;display:flex;align-items:center;gap:8px;}
+
+input[type=text], textarea, select {
+  font-family:var(--font);font-size:13px;color:var(--hi);
+  background:var(--bg3);border:1px solid var(--border);border-radius:7px;
+  padding:8px 12px;outline:none;transition:border-color .15s;
+}
+input[type=text]:focus, textarea:focus, select:focus{border-color:var(--accent);}
+input[type=text].wide{width:340px;}
+textarea.wide{width:340px;resize:vertical;min-height:80px;font-family:var(--mono);font-size:12px;}
+select.wide{width:200px;cursor:pointer;}
+input[type=number]{
+  font-family:var(--mono);font-size:13px;color:var(--hi);
+  background:var(--bg3);border:1px solid var(--border);border-radius:7px;
+  padding:8px 12px;outline:none;width:80px;
+}
+input[type=number]:focus{border-color:var(--accent);}
+
+/* Toggle switch */
+.toggle{position:relative;display:inline-block;width:44px;height:26px;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-slider{
+  position:absolute;inset:0;background:var(--bg3);border:1px solid var(--border);
+  border-radius:13px;cursor:pointer;transition:background .2s,border-color .2s;
+}
+.toggle-slider:before{
+  content:'';position:absolute;height:20px;width:20px;left:2px;top:2px;
+  background:#fff;border-radius:50%;transition:transform .2s;
+  box-shadow:0 1px 3px rgba(0,0,0,.2);
+}
+.toggle input:checked + .toggle-slider{background:var(--accent);border-color:var(--accent);}
+.toggle input:checked + .toggle-slider:before{transform:translateX(18px);}
+
+/* System info bar */
+.info-bar{
+  background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+  padding:14px 20px;margin-bottom:28px;display:flex;gap:28px;flex-wrap:wrap;
+}
+.info-item{display:flex;flex-direction:column;gap:3px;}
+.info-lbl{font-size:11px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;}
+.info-val{font-size:13px;font-weight:600;color:var(--hi);font-family:var(--mono);}
+
+.danger-zone .section-hdr{border-bottom-color:rgba(220,38,38,.15);}
+.danger-zone .section-title{color:var(--red);}
+</style>
+</head>
+<body>
+
+<header>
+  <a class="back" href="/">← Dashboard</a>
+  <div class="page-title">SETTINGS</div>
+  <div class="hdr-actions">
+    <span class="save-toast" id="save-toast">✓ Saved</span>
+    <button class="btn" onclick="resetDefaults()">Reset Defaults</button>
+    <button class="btn primary" onclick="saveSettings()">Save Settings</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- System info -->
+  <div class="info-bar" id="info-bar">
+    <div class="info-item"><div class="info-lbl">Python</div><div class="info-val" id="inf-python">—</div></div>
+    <div class="info-item"><div class="info-lbl">Vault</div><div class="info-val" id="inf-vault">—</div></div>
+    <div class="info-item"><div class="info-lbl">Notes</div><div class="info-val" id="inf-notes">—</div></div>
+    <div class="info-item"><div class="info-lbl">Dashboard</div><div class="info-val" id="inf-port">:3333</div></div>
+  </div>
+
+  <!-- Maps -->
+  <div class="section">
+    <div class="section-hdr">
+      <div class="section-icon">🗺️</div>
+      <div>
+        <div class="section-title">Offline Maps</div>
+        <div class="section-desc">Download source and extraction settings</div>
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-info">
+        <div class="field-label">Protomaps Source URL</div>
+        <div class="field-hint">Planet file used for map extraction. Update when a newer build is available at build.protomaps.com</div>
+      </div>
+      <div class="field-control">
+        <input type="text" class="wide" id="s-map-source" value="">
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-info">
+        <div class="field-label">Download Threads</div>
+        <div class="field-hint">Parallel connections for map extraction. Higher = faster but more CPU/network.</div>
+      </div>
+      <div class="field-control">
+        <input type="number" id="s-map-threads" min="1" max="16" value="4">
+      </div>
+    </div>
+  </div>
+
+  <!-- Libraries -->
+  <div class="section">
+    <div class="section-hdr">
+      <div class="section-icon">📖</div>
+      <div>
+        <div class="section-title">ZIM Libraries</div>
+        <div class="section-desc">Where to scan for offline library files on your storage drive</div>
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-info">
+        <div class="field-label">Vault Subdirectories</div>
+        <div class="field-hint">Comma-separated list of subdirectory names to scan inside your storage drive for .zim files.</div>
+      </div>
+      <div class="field-control">
+        <input type="text" class="wide" id="s-zim-subdirs" value="">
+      </div>
+    </div>
+  </div>
+
+  <!-- AI -->
+  <div class="section">
+    <div class="section-hdr">
+      <div class="section-icon">🤖</div>
+      <div>
+        <div class="section-title">AI Assistant</div>
+        <div class="section-desc">Ollama and Open WebUI settings</div>
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-info">
+        <div class="field-label">Ollama API URL</div>
+        <div class="field-hint">Used by the built-in chat modal. Change if Ollama is on a different port or host.</div>
+      </div>
+      <div class="field-control">
+        <input type="text" class="wide" id="s-ollama-url" value="">
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-info">
+        <div class="field-label">Open WebUI URL</div>
+        <div class="field-hint">URL for the Open WebUI card on the dashboard.</div>
+      </div>
+      <div class="field-control">
+        <input type="text" class="wide" id="s-webui-url" value="">
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="section">
+    <div class="section-hdr">
+      <div class="section-icon">⚙️</div>
+      <div>
+        <div class="section-title">Dashboard</div>
+        <div class="section-desc">Display and behavior settings</div>
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-info">
+        <div class="field-label">Refresh Interval</div>
+        <div class="field-hint">How often (seconds) the dashboard polls service status and system info.</div>
+      </div>
+      <div class="field-control">
+        <input type="number" id="s-refresh" min="5" max="300" value="10"> <span style="font-size:13px;color:var(--dim)">sec</span>
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-info">
+        <div class="field-label">Show Power Status</div>
+        <div class="field-hint">Display AC/battery status in the header bar.</div>
+      </div>
+      <div class="field-control">
+        <label class="toggle"><input type="checkbox" id="s-show-power" checked><span class="toggle-slider"></span></label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Danger zone -->
+  <div class="section danger-zone">
+    <div class="section-hdr">
+      <div class="section-icon">⚠️</div>
+      <div>
+        <div class="section-title">Danger Zone</div>
+        <div class="section-desc">Irreversible actions</div>
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-info">
+        <div class="field-label">Clear All Notes</div>
+        <div class="field-hint">Permanently delete all notes stored in ~/.sovereign/notes/</div>
+      </div>
+      <div class="field-control">
+        <button class="btn danger" onclick="clearNotes()">Clear Notes</button>
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-info">
+        <div class="field-label">Reset Settings</div>
+        <div class="field-hint">Restore all settings to their original defaults and restart the dashboard.</div>
+      </div>
+      <div class="field-control">
+        <button class="btn danger" onclick="resetDefaults()">Reset All</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const DEFAULTS = {
+  map_source: 'https://build.protomaps.com/20251201.pmtiles',
+  map_threads: 4,
+  zim_subdirs: 'Wikipedia,Medical,Education,Books,kiwix',
+  ollama_url: 'http://localhost:11434',
+  webui_url: 'http://localhost:8080',
+  refresh_interval: 10,
+  show_power: true,
+};
+
+let current = {};
+
+async function loadSettings() {
+  try {
+    const [s, sys, vault, notes] = await Promise.all([
+      fetch('/api/settings').then(r => r.json()),
+      fetch('/api/system').then(r => r.json()),
+      fetch('/api/vault').then(r => r.json()),
+      fetch('/api/notes').then(r => r.json()),
+    ]);
+    current = { ...DEFAULTS, ...s };
+    applyToForm(current);
+    // Info bar
+    document.getElementById('inf-python').textContent = '/opt/homebrew/bin/python3';
+    document.getElementById('inf-vault').textContent = vault.connected
+      ? vault.free_gb + ' GB free' : 'Not connected';
+    document.getElementById('inf-notes').textContent = notes.length + ' notes';
+  } catch(e) {
+    applyToForm(DEFAULTS);
+  }
+}
+
+function applyToForm(s) {
+  document.getElementById('s-map-source').value  = s.map_source    || DEFAULTS.map_source;
+  document.getElementById('s-map-threads').value  = s.map_threads   || DEFAULTS.map_threads;
+  document.getElementById('s-zim-subdirs').value  = s.zim_subdirs   || DEFAULTS.zim_subdirs;
+  document.getElementById('s-ollama-url').value   = s.ollama_url    || DEFAULTS.ollama_url;
+  document.getElementById('s-webui-url').value    = s.webui_url     || DEFAULTS.webui_url;
+  document.getElementById('s-refresh').value      = s.refresh_interval || DEFAULTS.refresh_interval;
+  document.getElementById('s-show-power').checked = s.show_power !== false;
+}
+
+function collectForm() {
+  return {
+    map_source:       document.getElementById('s-map-source').value.trim(),
+    map_threads:      parseInt(document.getElementById('s-map-threads').value) || 4,
+    zim_subdirs:      document.getElementById('s-zim-subdirs').value.trim(),
+    ollama_url:       document.getElementById('s-ollama-url').value.trim(),
+    webui_url:        document.getElementById('s-webui-url').value.trim(),
+    refresh_interval: parseInt(document.getElementById('s-refresh').value) || 10,
+    show_power:       document.getElementById('s-show-power').checked,
+  };
+}
+
+async function saveSettings() {
+  const s = collectForm();
+  try {
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(s),
+    });
+    current = s;
+    const toast = document.getElementById('save-toast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2000);
+  } catch(e) { alert('Error saving: ' + e.message); }
+}
+
+function resetDefaults() {
+  if (!confirm('Reset all settings to defaults?')) return;
+  applyToForm(DEFAULTS);
+  saveSettings();
+}
+
+async function clearNotes() {
+  if (!confirm('Delete ALL notes permanently? This cannot be undone.')) return;
+  try {
+    await fetch('/api/notes/clear', { method: 'POST' });
+    document.getElementById('inf-notes').textContent = '0 notes';
+    alert('All notes cleared.');
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+// Keyboard shortcut
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); saveSettings(); }
+});
+
+loadSettings();
+</script>
+</body>
+</html>

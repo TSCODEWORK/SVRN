@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVRN · Library Manager</title>
+<style>
+:root {
+  --bg:#f0f0ee; --bg2:#ffffff; --bg3:#e8e8e5; --border:#d4d4d0;
+  --text:#3a3a3c; --dim:#8e8e93; --hi:#1c1c1e; --accent:#2f6fd4;
+  --green:#16a34a; --red:#dc2626; --amber:#d97706;
+  --font:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono','SF Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;}
+
+header{
+  display:flex;align-items:center;gap:16px;padding:13px 24px;
+  border-bottom:1px solid var(--border);background:var(--bg2);
+  position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.06);
+}
+.back{color:var(--dim);text-decoration:none;font-size:13px;white-space:nowrap;}
+.back:hover{color:var(--hi);}
+.page-title{font-size:16px;font-weight:700;letter-spacing:.08em;color:var(--hi);}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:16px;}
+.vault-status{font-size:12px;display:flex;align-items:center;gap:6px;}
+.vs-dot{width:8px;height:8px;border-radius:50%;background:var(--red);}
+.vs-dot.on{background:var(--green);}
+.vs-text{color:var(--dim);}
+
+/* ── Active download banner ── */
+.dl-banner{
+  display:none;flex-direction:column;
+  position:sticky;top:49px;z-index:90;
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  box-shadow:0 2px 12px rgba(0,0,0,.08);
+}
+.dl-banner.show{display:flex;}
+
+/* Full-width progress track sits at very top of banner */
+.dl-track{
+  width:100%;height:4px;background:var(--bg3);flex-shrink:0;overflow:hidden;
+}
+.dl-track-fill{
+  height:100%;background:var(--accent);
+  transition:width .7s cubic-bezier(.4,0,.2,1);
+  position:relative;overflow:hidden;
+}
+/* Shimmer on the fill */
+.dl-track-fill::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.35) 50%,transparent 100%);
+  animation:shimmer 1.4s infinite;
+}
+@keyframes shimmer{
+  0%{transform:translateX(-100%);}
+  100%{transform:translateX(100%);}
+}
+/* Indeterminate (maps — unknown progress) */
+.dl-track-fill.indeterminate{
+  width:30% !important;
+  animation:indeterminate 1.6s ease-in-out infinite;
+}
+.dl-track-fill.indeterminate::after{display:none;}
+@keyframes indeterminate{
+  0%  {margin-left:-30%;width:30%;}
+  50% {margin-left:40%;width:50%;}
+  100%{margin-left:110%;width:30%;}
+}
+
+/* Banner body row */
+.dl-body{
+  display:flex;align-items:center;gap:16px;padding:12px 24px;
+}
+.dl-type-icon{
+  font-size:22px;flex-shrink:0;
+  animation:dl-pulse 2s ease-in-out infinite;
+}
+@keyframes dl-pulse{0%,100%{opacity:1;}50%{opacity:.55;}}
+
+.dl-info{flex:1;min-width:0;}
+.dl-name{
+  font-size:14px;font-weight:700;color:var(--hi);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.dl-meta{
+  display:flex;align-items:center;gap:12px;margin-top:3px;flex-wrap:wrap;
+}
+.dl-sub{font-size:12px;color:var(--dim);}
+.dl-speed{
+  font-size:12px;font-family:var(--mono);font-weight:600;
+  color:var(--accent);background:rgba(47,111,212,.08);
+  border:1px solid rgba(47,111,212,.2);border-radius:4px;padding:1px 7px;
+}
+.dl-pct-badge{
+  font-size:13px;font-weight:800;color:var(--accent);
+  font-family:var(--mono);white-space:nowrap;flex-shrink:0;min-width:52px;
+  text-align:right;
+}
+.queue-count{
+  font-size:12px;font-weight:600;color:var(--dim);
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:6px;padding:4px 10px;white-space:nowrap;flex-shrink:0;
+}
+.btn-cancel{
+  font-family:var(--font);font-size:12px;font-weight:600;
+  padding:6px 14px;border-radius:7px;
+  border:1px solid rgba(220,38,38,.3);
+  cursor:pointer;background:none;color:var(--red);flex-shrink:0;
+  transition:all .12s;
+}
+.btn-cancel:hover{background:var(--red);color:#fff;border-color:var(--red);}
+
+main{padding:32px 28px;max-width:1400px;margin:0 auto;}
+
+/* Section */
+.section-hdr{
+  display:flex;align-items:center;gap:10px;margin-bottom:18px;
+  padding-bottom:12px;border-bottom:1px solid var(--border);
+}
+.section-icon{font-size:20px;}
+.section-title{font-size:14px;font-weight:700;letter-spacing:.12em;color:var(--hi);text-transform:uppercase;}
+.section-count{font-size:12px;color:var(--dim);margin-left:auto;}
+.section{margin-bottom:44px;}
+
+/* Content grid */
+.content-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
+  gap:16px;
+}
+
+/* Content card */
+.ccard{
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:20px;display:flex;flex-direction:column;gap:12px;
+  position:relative;transition:border-color .15s,box-shadow .15s;
+}
+.ccard.installed{border-left:3px solid var(--green);}
+.ccard.downloading{border-left:3px solid var(--accent);}
+.ccard.queued{border-left:3px solid var(--amber);}
+.ccard-top{display:flex;align-items:flex-start;gap:12px;}
+.ccard-icon{font-size:28px;line-height:1;flex-shrink:0;}
+.ccard-info{flex:1;min-width:0;}
+.ccard-name{font-size:15px;font-weight:700;color:var(--hi);margin-bottom:3px;}
+.ccard-desc{font-size:12.5px;color:var(--dim);line-height:1.6;}
+.ccard-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.size-badge{
+  font-size:11px;font-weight:600;font-family:var(--mono);
+  background:var(--bg3);border:1px solid var(--border);
+  color:var(--dim);border-radius:4px;padding:2px 8px;
+}
+.status-pill{
+  font-size:11px;font-weight:600;letter-spacing:.06em;
+  padding:3px 10px;border-radius:20px;text-transform:uppercase;
+}
+.status-pill.installed{background:rgba(22,163,74,.1);color:var(--green);}
+.status-pill.queued{background:rgba(217,119,6,.1);color:var(--amber);}
+.status-pill.downloading{background:rgba(47,111,212,.1);color:var(--accent);}
+.tag{
+  font-size:10px;color:var(--dim);background:var(--bg3);
+  border:1px solid var(--border);border-radius:4px;padding:2px 7px;
+}
+.tag.recommended{border-color:var(--accent);color:var(--accent);background:rgba(47,111,212,.06);}
+.ccard-actions{display:flex;gap:8px;margin-top:auto;}
+
+.btn{
+  font-family:var(--font);font-size:12.5px;font-weight:600;
+  padding:8px 18px;border-radius:8px;border:1px solid var(--border);
+  cursor:pointer;background:var(--bg3);color:var(--text);
+  transition:background .12s,border-color .12s;white-space:nowrap;
+  display:flex;align-items:center;gap:6px;
+}
+.btn:hover{background:var(--border);}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+.btn.primary:hover{opacity:.88;}
+.btn.open{background:var(--green);color:#fff;border-color:var(--green);font-weight:600;}
+.btn.open:hover{opacity:.88;}
+.btn.danger{color:var(--red);border-color:rgba(220,38,38,.25);background:none;}
+.btn.danger:hover{background:var(--red);color:#fff;border-color:var(--red);}
+.ccard-actions{display:flex;gap:8px;flex-wrap:wrap;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+
+/* Progress inside card */
+.card-progress{margin-top:6px;}
+.card-prog-bar{
+  height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;
+  margin-bottom:5px;position:relative;
+}
+.card-prog-fill{
+  height:100%;background:var(--accent);border-radius:3px;
+  transition:width .7s cubic-bezier(.4,0,.2,1);
+  position:relative;overflow:hidden;
+}
+.card-prog-fill::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);
+  animation:shimmer 1.4s infinite;
+}
+.card-prog-label{
+  font-size:11px;color:var(--dim);font-family:var(--mono);
+  display:flex;justify-content:space-between;
+}
+
+/* Queue sidebar or inline queue */
+.queue-section{
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:20px;margin-bottom:36px;display:none;
+}
+.queue-section.show{display:block;}
+.queue-title{font-size:13px;font-weight:700;color:var(--hi);margin-bottom:14px;
+  letter-spacing:.08em;text-transform:uppercase;}
+.queue-item{
+  display:flex;align-items:center;gap:12px;padding:10px 0;
+  border-bottom:1px solid var(--bg3);
+}
+.queue-item:last-child{border-bottom:none;}
+.qi-icon{font-size:18px;flex-shrink:0;}
+.qi-info{flex:1;min-width:0;}
+.qi-name{font-size:13px;font-weight:600;color:var(--hi);}
+.qi-status{font-size:11px;color:var(--dim);margin-top:2px;}
+.qi-pct{font-size:11px;font-family:var(--mono);color:var(--accent);font-weight:700;}
+.qi-cancel{
+  background:none;border:none;cursor:pointer;color:var(--dim);
+  font-size:16px;padding:4px;line-height:1;flex-shrink:0;
+}
+.qi-cancel:hover{color:var(--red);}
+
+/* Empty state */
+.empty{
+  text-align:center;padding:40px 20px;color:var(--dim);font-size:13px;
+  line-height:1.8;
+}
+.empty-icon{font-size:36px;margin-bottom:12px;opacity:.5;}
+
+/* No vault warning */
+.no-vault{
+  background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.3);
+  border-radius:10px;padding:16px 20px;margin-bottom:28px;
+  font-size:13px;color:var(--amber);display:none;align-items:center;gap:10px;
+}
+.no-vault.show{display:flex;}
+</style>
+</head>
+<body>
+
+<header>
+  <a class="back" href="/">← Dashboard</a>
+  <div class="page-title">LIBRARY MANAGER</div>
+  <div class="hdr-right">
+    <div class="vault-status">
+      <div class="vs-dot" id="vs-dot"></div>
+      <span class="vs-text" id="vs-text">Checking vault…</span>
+    </div>
+  </div>
+</header>
+
+<!-- Active download banner -->
+<div class="dl-banner" id="dl-banner">
+  <div class="dl-track">
+    <div class="dl-track-fill" id="dl-track-fill" style="width:0%"></div>
+  </div>
+  <div class="dl-body">
+    <div class="dl-type-icon" id="dl-type-icon">⬇️</div>
+    <div class="dl-info">
+      <div class="dl-name" id="dl-name">—</div>
+      <div class="dl-meta">
+        <span class="dl-sub" id="dl-sub">Downloading…</span>
+        <span class="dl-speed" id="dl-speed" style="display:none"></span>
+      </div>
+    </div>
+    <div class="dl-pct-badge" id="dl-pct">0%</div>
+    <div class="queue-count" id="queue-count" style="display:none">+0 queued</div>
+    <button class="btn-cancel" id="dl-cancel-btn">✕ Cancel</button>
+  </div>
+</div>
+
+<main>
+
+  <!-- No vault warning -->
+  <div class="no-vault" id="no-vault">
+    <span>⚠️</span>
+    <span>your storage drive is not connected. Connect your drive to enable ZIM downloads. AI model downloads work without the vault.</span>
+  </div>
+
+  <!-- Queue (shown when items are pending) -->
+  <div class="queue-section" id="queue-section">
+    <div class="queue-title">Download Queue</div>
+    <div id="queue-list"></div>
+  </div>
+
+  <!-- ZIM Sections built dynamically -->
+  <div id="zim-sections"></div>
+
+  <!-- Maps -->
+  <div class="section">
+    <div class="section-hdr">
+      <div class="section-icon">🗺️</div>
+      <div class="section-title">Offline Maps</div>
+      <div class="section-count" id="maps-count"></div>
+    </div>
+    <div class="content-grid" id="maps-grid"></div>
+  </div>
+
+  <!-- AI Models -->
+  <div class="section">
+    <div class="section-hdr">
+      <div class="section-icon">🤖</div>
+      <div class="section-title">AI Models</div>
+      <div class="section-count" id="models-count"></div>
+    </div>
+    <div class="content-grid" id="models-grid"></div>
+  </div>
+
+</main>
+
+<script>
+let vaultConnected = false;
+let activeJobId    = null;
+let queueData      = { active: null, queue: [] };
+let mapDlState     = { status: 'idle' };
+let lastBytes      = 0;
+let lastBytesTime  = 0;
+
+document.getElementById('dl-cancel-btn').addEventListener('click', cancelActive);
+
+// ── Confirm delete helper ──
+async function confirmAndDelete(name, fn) {
+  if (!confirm(`Remove "${name}" from vault? This cannot be undone.`)) return;
+  await fn();
+  refresh();
+}
+
+// ── Humanize bytes ──
+function fmtBytes(bytes) {
+  if (!bytes) return '';
+  const gb = bytes / 1e9;
+  if (gb >= 1) return gb.toFixed(1) + ' GB';
+  const mb = bytes / 1e6;
+  return mb.toFixed(0) + ' MB';
+}
+function fmtSpeed(bytes, elapsed) {
+  if (!bytes || !elapsed) return '';
+  const rate = bytes / elapsed;
+  return fmtBytes(rate) + '/s';
+}
+
+// ── Cancel active download ──
+async function cancelActive() {
+  if (mapDlState.status === 'running') {
+    await fetch('/api/maps/download/cancel', { method: 'POST' });
+  } else if (activeJobId) {
+    await fetch(`/api/library/cancel/${activeJobId}`);
+  }
+  refresh();
+}
+
+// ── Cancel queued job ──
+async function cancelJob(id) {
+  await fetch(`/api/library/cancel/${id}`);
+  refresh();
+}
+
+// ── Open library in reader tab ──
+function getReaderUrl(item) {
+  // OSE wiki is served natively by the dashboard
+  if (item.id === 'ose_wiki' || item.category === 'OSE') return '/ose';
+  // SVRN split reader: /reader?zim=<stem>
+  const zimName = item.filename.replace(/\.zim$/, '');
+  return `/reader?zim=${encodeURIComponent(zimName)}`;
+}
+
+function openLibrary(readerUrl) {
+  window.open(readerUrl, '_blank');
+}
+
+// ── Queue a ZIM download ──
+async function downloadZim(id, name) {
+  if (!vaultConnected) { alert('Connect your storage drive first.'); return; }
+  try {
+    const r = await fetch('/api/library/download', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'zim', id }),
+    }).then(r => r.json());
+    if (r.error) { alert(r.error); return; }
+    refresh();
+  } catch(e) { alert(e.message); }
+}
+
+// ── Queue an Ollama model pull ──
+async function downloadModel(id, name) {
+  try {
+    const r = await fetch('/api/library/download', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'ollama', id }),
+    }).then(r => r.json());
+    if (r.error) { alert(r.error); return; }
+    refresh();
+  } catch(e) { alert(e.message); }
+}
+
+// ── Delete ZIM ──
+async function deleteZim(id, name) {
+  await confirmAndDelete(name, async () => {
+    await fetch('/api/library/delete/zim', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ id }),
+    });
+  });
+}
+
+// ── Delete Ollama model ──
+async function deleteModel(id, name) {
+  await confirmAndDelete(name, async () => {
+    await fetch('/api/library/delete/ollama', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ id }),
+    });
+  });
+}
+
+// ── Delete map preset ──
+async function deleteMap(presetId, name) {
+  await confirmAndDelete(name, async () => {
+    await fetch('/api/maps/delete', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ preset_id: presetId }),
+    });
+  });
+}
+
+// ── Download map preset ──
+async function downloadMap(presetId, name) {
+  if (!vaultConnected) { alert('Connect your storage drive first.'); return; }
+  try {
+    // If the map state is stuck in error/done, reset it first
+    if (mapDlState.status === 'error' || mapDlState.status === 'done') {
+      await fetch('/api/maps/download/reset', { method: 'POST' });
+    }
+    const resp = await fetch('/api/maps/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preset_id: presetId }),
+    });
+    const r = await resp.json();
+    if (r.error) { alert('Map download error: ' + r.error); return; }
+    refresh();
+  } catch(e) { alert('Could not start download: ' + e.message); }
+}
+
+// ── Render the unified download banner ──
+function renderBanner(active, mapState) {
+  const banner   = document.getElementById('dl-banner');
+  const trackFill = document.getElementById('dl-track-fill');
+  const nameEl   = document.getElementById('dl-name');
+  const subEl    = document.getElementById('dl-sub');
+  const speedEl  = document.getElementById('dl-speed');
+  const pctEl    = document.getElementById('dl-pct');
+  const iconEl   = document.getElementById('dl-type-icon');
+
+  // --- Map download: running or error ---
+  if (mapState && (mapState.status === 'running' || mapState.status === 'error')) {
+    banner.classList.add('show');
+    activeJobId = null;
+    iconEl.textContent = '🗺️';
+    nameEl.textContent = mapState.preset_name || 'Map download';
+    speedEl.style.display = 'none';
+
+    if (mapState.status === 'error') {
+      trackFill.className = 'dl-track-fill';
+      trackFill.style.width = '100%';
+      trackFill.style.background = 'var(--red)';
+      pctEl.textContent = 'Error';
+      subEl.textContent = mapState.error || 'Download failed';
+      return;
+    }
+
+    // Running — indeterminate bar
+    trackFill.className = 'dl-track-fill indeterminate';
+    trackFill.style.width = '';
+    trackFill.style.background = '';
+    pctEl.textContent = 'In progress';
+    const elapsed = mapState.started ? Math.round((Date.now()/1000) - mapState.started) : 0;
+    const mins = Math.floor(elapsed / 60), secs = String(elapsed % 60).padStart(2,'0');
+    subEl.textContent = `Extracting region · ${mins}m ${secs}s elapsed`;
+    return;
+  }
+
+  // --- Queue download (ZIM or Ollama) ---
+  if (!active || !['running'].includes(active.status)) {
+    banner.classList.remove('show');
+    activeJobId = null;
+    return;
+  }
+
+  banner.classList.add('show');
+  activeJobId = active.id;
+
+  const pct = active.progress || 0;
+  iconEl.textContent = active.type === 'ollama' ? '🤖' : '📦';
+  nameEl.textContent = active.name || active.model || '—';
+
+  // Determinate progress bar
+  trackFill.className = 'dl-track-fill';
+  trackFill.style.width = pct + '%';
+  pctEl.textContent = pct.toFixed(1) + '%';
+
+  // Bytes label
+  if (active.downloaded_bytes && active.total_bytes) {
+    subEl.textContent = `${fmtBytes(active.downloaded_bytes)} of ${fmtBytes(active.total_bytes)}`;
+  } else {
+    subEl.textContent = active.status_text || 'Downloading…';
+  }
+
+  // Speed calculation
+  const now  = Date.now();
+  const bytesDelta = (active.downloaded_bytes || 0) - lastBytes;
+  const timeDelta  = (now - lastBytesTime) / 1000;
+  if (lastBytesTime && timeDelta > 0 && bytesDelta > 0) {
+    const rate = bytesDelta / timeDelta;
+    speedEl.textContent = fmtBytes(rate) + '/s';
+    speedEl.style.display = 'inline-block';
+  } else {
+    speedEl.style.display = 'none';
+  }
+  lastBytes     = active.downloaded_bytes || 0;
+  lastBytesTime = now;
+}
+
+// ── Render the queue panel ──
+function renderQueue(queue, active) {
+  const section = document.getElementById('queue-section');
+  const list    = document.getElementById('queue-list');
+  const qc      = document.getElementById('queue-count');
+  const allJobs = [active, ...queue].filter(Boolean).filter(j => j.status !== 'done');
+
+  // Queue count in banner
+  if (queue.length > 0) {
+    qc.textContent = `+${queue.length} queued`;
+    qc.style.display = 'block';
+  } else {
+    qc.style.display = 'none';
+  }
+
+  if (!allJobs.length) { section.classList.remove('show'); return; }
+  section.classList.add('show');
+
+  list.innerHTML = allJobs.map(j => {
+    const isActive = j.status === 'running';
+    const icon = j.type === 'ollama' ? '🤖' : j.type === 'map' ? '🗺️' : '📦';
+    const pct = (j.progress || 0).toFixed(1);
+    const statusLabel = isActive
+      ? `<span style="color:var(--accent)">${pct}% — downloading</span>`
+      : `<span style="color:var(--amber)">Queued</span>`;
+    return `
+      <div class="queue-item">
+        <div class="qi-icon">${icon}</div>
+        <div class="qi-info">
+          <div class="qi-name">${j.name || j.model || '—'}</div>
+          <div class="qi-status">${statusLabel}</div>
+        </div>
+        ${isActive ? `<div class="qi-pct">${pct}%</div>` : ''}
+        <button class="qi-cancel" onclick="cancelJob('${j.id}')" title="Cancel">✕</button>
+      </div>`;
+  }).join('');
+}
+
+// ── Get card state based on job queue ──
+function cardState(filename_or_model, type, catalog, mapPresets) {
+  const active = queueData.active;
+  const queue  = queueData.queue;
+  if (type === 'zim') {
+    const isActive = active && active.type === 'zim' && active.filename === filename_or_model;
+    const isQueued = queue.some(j => j.type === 'zim' && j.filename === filename_or_model);
+    return isActive ? 'downloading' : isQueued ? 'queued' : null;
+  }
+  if (type === 'ollama') {
+    const isActive = active && active.type === 'ollama' && active.model === filename_or_model;
+    const isQueued = queue.some(j => j.type === 'ollama' && j.model === filename_or_model);
+    return isActive ? 'downloading' : isQueued ? 'queued' : null;
+  }
+  if (type === 'map') {
+    // Map downloads use different mechanism
+    return null;
+  }
+}
+
+// ── Render ZIM catalog sections ──
+function renderZimSections(catalog) {
+  const categories = {};
+  catalog.forEach(item => {
+    if (!categories[item.category]) categories[item.category] = [];
+    categories[item.category].push(item);
+  });
+
+  const catIcons = {
+    'Reference': '📖', 'Medical': '🏥', 'Education': '🎓',
+    'Technical': '💻', 'Books': '📚', 'Survival': '🏕️',
+  };
+
+  const container = document.getElementById('zim-sections');
+  container.innerHTML = Object.entries(categories).map(([cat, items]) => {
+    const installed = items.filter(i => i.installed).length;
+    const cards = items.map(item => renderZimCard(item)).join('');
+    return `
+      <div class="section">
+        <div class="section-hdr">
+          <div class="section-icon">${catIcons[cat] || '📦'}</div>
+          <div class="section-title">${cat}</div>
+          <div class="section-count">${installed}/${items.length} installed</div>
+        </div>
+        <div class="content-grid">${cards}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderZimCard(item) {
+  const dl = cardState(item.filename, 'zim');
+  const stateClass = item.installed ? 'installed' : dl || '';
+  const active = queueData.active;
+  const isActiveNow = active && active.type === 'zim' && active.filename === item.filename;
+  const pct = isActiveNow ? (active.progress || 0) : 0;
+
+  let statusPill = '';
+  if (item.installed) statusPill = '<span class="status-pill installed">✓ Installed</span>';
+  else if (dl === 'downloading') statusPill = '<span class="status-pill downloading">↓ Downloading</span>';
+  else if (dl === 'queued') statusPill = '<span class="status-pill queued">Queued</span>';
+
+  const openIcon = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
+  const trashIcon2 = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>`;
+  let actionBtn = '';
+  if (item.installed) {
+    const readerUrl = getReaderUrl(item);
+    actionBtn = `
+      <button class="btn open" onclick="openLibrary('${readerUrl}')">
+        ${openIcon} Open</button>
+      <button class="btn danger" onclick="deleteZim('${item.id}','${item.name.replace(/'/g,"\\'")}')">
+        ${trashIcon2} Remove</button>`;
+  } else if (dl === 'downloading' || dl === 'queued') {
+    actionBtn = `<button class="btn" disabled>In Queue</button>`;
+  } else {
+    actionBtn = `<button class="btn primary" onclick="downloadZim('${item.id}','${item.name.replace(/'/g,"\\'")}')">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download (${item.size_gb} GB)</button>`;
+  }
+
+  const progressHtml = isActiveNow ? `
+    <div class="card-progress">
+      <div class="card-prog-bar"><div class="card-prog-fill" style="width:${pct}%"></div></div>
+      <div class="card-prog-label">
+        <span>${active.status_text || 'Downloading…'}</span>
+        <span>${pct.toFixed(1)}%</span>
+      </div>
+    </div>` : '';
+
+  return `
+    <div class="ccard ${stateClass}">
+      <div class="ccard-top">
+        <div class="ccard-icon">${item.icon}</div>
+        <div class="ccard-info">
+          <div class="ccard-name">${item.name}</div>
+          <div class="ccard-desc">${item.desc}</div>
+        </div>
+      </div>
+      <div class="ccard-meta">
+        <span class="size-badge">${item.size_gb} GB</span>
+        ${statusPill}
+      </div>
+      ${progressHtml}
+      <div class="ccard-actions">${actionBtn}</div>
+    </div>`;
+}
+
+// ── Render Maps section ──
+function renderMaps(presets, mapStatus) {
+  const grid = document.getElementById('maps-grid');
+  const installed = presets.filter(p => p.installed).length;
+  document.getElementById('maps-count').textContent = `${installed}/${presets.length} installed`;
+
+  grid.innerHTML = presets.map(p => {
+    const isDownloading = mapStatus && mapStatus.status === 'running' && mapStatus.preset_id === p.id;
+    const stateClass = p.installed ? 'installed' : isDownloading ? 'downloading' : '';
+
+    const statusPill = p.installed
+      ? `<span class="status-pill installed">✓ ${p.size_on_disk_gb} GB</span>`
+      : isDownloading
+      ? `<span class="status-pill downloading">↓ Extracting…</span>`
+      : '';
+
+    const sizeLabel = `~${p.est_mb >= 1000 ? (p.est_mb/1000).toFixed(1)+' GB' : p.est_mb+' MB'}`;
+    const dlIcon = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+
+    const trashIcon = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>`;
+    const openIcon2 = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
+    const actionBtn = p.installed
+      ? `<button class="btn open" onclick="openLibrary('/maps')">${openIcon2} Open</button>
+         <button class="btn danger" onclick="deleteMap('${p.id}','${p.name.replace(/'/g,"\\'")}')"> ${trashIcon} Remove</button>`
+      : isDownloading
+      ? `<button class="btn" disabled>Extracting…</button>`
+      : `<button class="btn primary" onclick="downloadMap('${p.id}','${p.name.replace(/'/g,"\\'")}')"> ${dlIcon} Download (${sizeLabel})</button>`;
+
+    // Indeterminate progress bar for map (no byte-level tracking)
+    const progressHtml = isDownloading ? `
+      <div class="card-progress">
+        <div class="card-prog-bar" style="overflow:hidden;position:relative;">
+          <div style="position:absolute;height:100%;background:var(--accent);border-radius:2px;
+            animation:indeterminate 1.6s ease-in-out infinite;width:40%"></div>
+        </div>
+        <div class="card-prog-label">
+          <span>Region extraction in progress…</span>
+          <span style="color:var(--accent)">Running</span>
+        </div>
+      </div>` : '';
+
+    return `
+      <div class="ccard ${stateClass}">
+        <div class="ccard-top">
+          <div class="ccard-icon">🗺️</div>
+          <div class="ccard-info">
+            <div class="ccard-name">${p.name}</div>
+            <div class="ccard-desc">${p.desc}</div>
+          </div>
+        </div>
+        <div class="ccard-meta">
+          ${p.installed ? statusPill : `<span class="size-badge">${sizeLabel}</span>`}
+          ${!p.installed ? statusPill : ''}
+        </div>
+        ${progressHtml}
+        <div class="ccard-actions">${actionBtn}</div>
+      </div>`;
+  }).join('');
+}
+
+// ── Render AI Models section ──
+function renderModels(models) {
+  const grid = document.getElementById('models-grid');
+  const installed = models.filter(m => m.installed).length;
+  document.getElementById('models-count').textContent = `${installed}/${models.length} available`;
+
+  const active = queueData.active;
+
+  grid.innerHTML = models.map(m => {
+    const isActiveNow = active && active.type === 'ollama' && active.model === m.id;
+    const dl = cardState(m.id, 'ollama');
+    const stateClass = m.installed ? 'installed' : dl || '';
+    const pct = isActiveNow ? (active.progress || 0) : 0;
+
+    let statusPill = '';
+    if (m.installed) statusPill = '<span class="status-pill installed">✓ Installed</span>';
+    else if (dl === 'downloading') statusPill = '<span class="status-pill downloading">↓ Pulling…</span>';
+    else if (dl === 'queued') statusPill = '<span class="status-pill queued">Queued</span>';
+
+    const tagHtml = (m.tags || []).map(t =>
+      `<span class="tag${t === 'recommended' ? ' recommended' : ''}">${t}</span>`
+    ).join('');
+
+    let actionBtn = '';
+    if (m.installed) {
+      actionBtn = `<button class="btn danger" onclick="deleteModel('${m.id}','${m.name.replace(/'/g,"\\'")}')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+        Remove</button>`;
+    } else if (dl === 'downloading' || dl === 'queued') {
+      actionBtn = `<button class="btn" disabled>In Queue</button>`;
+    } else {
+      actionBtn = `<button class="btn primary" onclick="downloadModel('${m.id}','${m.name.replace(/'/g,"\\'")}')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Pull (${m.size_gb} GB)</button>`;
+    }
+
+    const progressHtml = isActiveNow ? `
+      <div class="card-progress">
+        <div class="card-prog-bar"><div class="card-prog-fill" style="width:${pct}%"></div></div>
+        <div class="card-prog-label">
+          <span>${active.status_text || 'Pulling model…'}</span>
+          <span>${pct.toFixed(1)}%</span>
+        </div>
+      </div>` : '';
+
+    return `
+      <div class="ccard ${stateClass}">
+        <div class="ccard-top">
+          <div class="ccard-icon">🤖</div>
+          <div class="ccard-info">
+            <div class="ccard-name">${m.name}</div>
+            <div class="ccard-desc">${m.desc}</div>
+          </div>
+        </div>
+        <div class="ccard-meta">
+          <span class="size-badge">${m.size_gb} GB</span>
+          ${statusPill}
+          ${tagHtml}
+        </div>
+        ${progressHtml}
+        <div class="ccard-actions">${actionBtn}</div>
+      </div>`;
+  }).join('');
+}
+
+// ── Main refresh ──
+async function refresh() {
+  try {
+    const [catalog, maps, models, queue, vault, mapStatus] = await Promise.all([
+      fetch('/api/library/catalog').then(r => r.json()),
+      fetch('/api/maps/presets').then(r => r.json()),
+      fetch('/api/library/ollama').then(r => r.json()),
+      fetch('/api/library/queue').then(r => r.json()),
+      fetch('/api/vault').then(r => r.json()),
+      fetch('/api/maps/download/status').then(r => r.json()).catch(() => ({ status: 'idle' })),
+    ]);
+
+    // Vault status
+    vaultConnected = vault.connected;
+    const dot  = document.getElementById('vs-dot');
+    const text = document.getElementById('vs-text');
+    dot.className = 'vs-dot' + (vault.connected ? ' on' : '');
+    text.textContent = vault.connected
+      ? `your storage drive · ${vault.free_gb} GB free`
+      : 'your storage drive not connected';
+    document.getElementById('no-vault').classList.toggle('show', !vault.connected);
+
+    // Queue + map state
+    queueData   = queue;
+    mapDlState  = mapStatus;
+    renderBanner(queue.active, mapStatus);
+    renderQueue(queue.queue, queue.active);
+
+    // Content
+    renderZimSections(catalog);
+    renderMaps(maps, mapStatus);
+    renderModels(models);
+
+  } catch(e) {
+    console.error('Refresh failed:', e);
+  }
+}
+
+// Poll fast while anything is actively downloading
+function schedulePoll() {
+  const queueActive = queueData.active && queueData.active.status === 'running';
+  const mapActive   = mapDlState && mapDlState.status === 'running';
+  const interval    = (queueActive || mapActive) ? 1500 : 8000;
+  setTimeout(() => { refresh().then(schedulePoll); }, interval);
+}
+
+refresh().then(schedulePoll);
+</script>
+</body>
+</html>
