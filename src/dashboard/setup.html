@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SVRN Setup</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  background: #f0ece4;
+  color: #2c2820;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.wizard {
+  background: #fdfaf5;
+  border-radius: 20px;
+  box-shadow: 0 8px 48px rgba(0,0,0,.12);
+  width: 100%;
+  max-width: 620px;
+  overflow: hidden;
+}
+
+/* Progress bar */
+.prog-bar {
+  height: 3px;
+  background: #e8e2d8;
+}
+.prog-fill {
+  height: 100%;
+  background: #4e6fa3;
+  transition: width .4s ease;
+}
+
+.step {
+  display: none;
+  padding: 48px 48px 40px;
+  min-height: 420px;
+  flex-direction: column;
+  gap: 24px;
+}
+.step.active {
+  display: flex;
+}
+
+.step-icon {
+  font-size: 48px;
+  line-height: 1;
+}
+
+h1 {
+  font-size: 26px;
+  font-weight: 700;
+  color: #1a1612;
+  letter-spacing: -.3px;
+}
+
+p {
+  font-size: 15px;
+  line-height: 1.65;
+  color: #5a5040;
+}
+
+.highlight {
+  color: #4e6fa3;
+  font-weight: 600;
+}
+
+/* Storage picker */
+.storage-box {
+  background: #f5f1eb;
+  border: 2px dashed #c8bfb0;
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s;
+}
+.storage-box:hover { border-color: #4e6fa3; }
+.storage-box.selected {
+  border-style: solid;
+  border-color: #4e6fa3;
+  background: #edf2fb;
+}
+.storage-path {
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  color: #3a3020;
+  margin-top: 8px;
+  word-break: break-all;
+}
+.storage-hint { font-size: 13px; color: #8a7a60; margin-top: 6px; }
+
+/* Ollama status */
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #f5f1eb;
+  border-radius: 10px;
+}
+.status-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-dot.green  { background: #4caf50; box-shadow: 0 0 8px #4caf5066; }
+.status-dot.yellow { background: #ff9800; }
+.status-dot.gray   { background: #bbb; }
+
+.status-text { font-size: 14px; }
+.status-text strong { display: block; font-size: 15px; }
+
+/* Content grid */
+.content-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.content-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #f5f1eb;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color .15s, background .15s;
+}
+.content-item:hover { background: #ede8df; }
+.content-item.checked { border-color: #4e6fa3; background: #edf2fb; }
+.content-item input[type=checkbox] {
+  width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; cursor: pointer;
+  accent-color: #4e6fa3;
+}
+.content-info { flex: 1; }
+.content-name { font-size: 14px; font-weight: 600; color: #2c2820; }
+.content-desc { font-size: 12px; color: #7a6a50; margin-top: 2px; }
+.content-size { font-size: 12px; color: #4e6fa3; font-weight: 600; margin-top: 2px; }
+
+/* Buttons */
+.btn-row {
+  display: flex;
+  gap: 12px;
+  margin-top: auto;
+}
+.btn {
+  flex: 1;
+  padding: 13px 20px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s, transform .1s;
+}
+.btn:active { transform: scale(.98); }
+.btn-primary {
+  background: #4e6fa3;
+  color: #fff;
+}
+.btn-primary:hover { background: #3d5f93; }
+.btn-primary:disabled { opacity: .5; cursor: default; }
+.btn-secondary {
+  background: #e8e2d8;
+  color: #2c2820;
+  flex: 0 0 auto;
+  padding: 13px 16px;
+}
+.btn-secondary:hover { background: #ddd7cc; }
+.btn-link {
+  background: none;
+  color: #4e6fa3;
+  flex: 0 0 auto;
+  font-size: 13px;
+  padding: 13px 8px;
+}
+
+/* Download progress */
+.dl-list { display: flex; flex-direction: column; gap: 10px; }
+.dl-item { background: #f5f1eb; border-radius: 8px; padding: 12px 14px; }
+.dl-name { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+.dl-bar-wrap { background: #ddd7cc; border-radius: 4px; height: 6px; overflow: hidden; }
+.dl-bar { height: 100%; background: #4e6fa3; border-radius: 4px; transition: width .5s; }
+.dl-status { font-size: 12px; color: #7a6a50; margin-top: 4px; }
+
+/* Final step */
+.feature-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.feature-chip {
+  background: #f0ece4;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #5a5040;
+}
+.feature-chip strong { display: block; font-size: 14px; color: #2c2820; }
+</style>
+</head>
+<body>
+<div class="wizard">
+  <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:20%"></div></div>
+
+  <!-- Step 1: Welcome -->
+  <div class="step active" id="step1">
+    <div class="step-icon">🌿</div>
+    <h1>Welcome to SVRN</h1>
+    <p>Your personal <span class="highlight">offline knowledge base</span> — Wikipedia, maps, medical references, an AI assistant, and more.</p>
+    <p>No internet required during use. Works on any Mac, from any drive.</p>
+    <p>This wizard takes about 2 minutes. Let's get you set up.</p>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="goStep(2)">Get Started →</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Storage -->
+  <div class="step" id="step2">
+    <div class="step-icon">💾</div>
+    <h1>Choose your library location</h1>
+    <p>SVRN stores ZIM files, maps, and AI content in a folder you choose. This can be an external drive, your Downloads folder, or anywhere you like.</p>
+
+    <div class="storage-box" id="storageBox" onclick="chooseStorage()">
+      <div style="font-size:24px">📂</div>
+      <div style="font-weight:600;margin-top:8px">Click to choose a folder</div>
+      <div class="storage-hint">Recommended: at least 5 GB free for a starter library</div>
+    </div>
+    <div id="storagePath" class="storage-path" style="display:none"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(1)">← Back</button>
+      <button class="btn btn-primary" id="storageNext" disabled onclick="saveStorage()">Continue →</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Ollama -->
+  <div class="step" id="step3">
+    <div class="step-icon">🤖</div>
+    <h1>AI Assistant</h1>
+    <p>SVRN uses <span class="highlight">Ollama</span> to run AI models locally — no cloud, no API keys, no data leaving your Mac.</p>
+
+    <div class="status-row" id="ollamaStatus">
+      <div class="status-dot gray" id="ollamaDot"></div>
+      <div class="status-text">
+        <strong id="ollamaStatusTitle">Checking…</strong>
+        <span id="ollamaStatusDesc">Looking for Ollama on your system</span>
+      </div>
+    </div>
+
+    <div id="ollamaActions" style="display:none">
+      <div class="btn-row" style="margin-top:0">
+        <a href="https://ollama.ai" target="_blank" class="btn btn-secondary" style="flex:1;text-align:center;text-decoration:none;padding:12px 16px;font-size:14px">Download Ollama →</a>
+        <button class="btn btn-link" onclick="checkOllama()">Check again</button>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(2)">← Back</button>
+      <button class="btn btn-link" onclick="goStep(4)">Skip for now</button>
+      <button class="btn btn-primary" id="ollamaNext" disabled onclick="goStep(4)">Continue →</button>
+    </div>
+  </div>
+
+  <!-- Step 4: Content -->
+  <div class="step" id="step4">
+    <div class="step-icon">📚</div>
+    <h1>Choose your starter content</h1>
+    <p>Select what to download. You can add more from the Library Manager at any time.</p>
+
+    <div class="content-grid" id="contentGrid">
+      <!-- Populated by JS -->
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(3)">← Back</button>
+      <button class="btn btn-link" onclick="goStep(5)">Skip downloads</button>
+      <button class="btn btn-primary" id="downloadBtn" onclick="startDownloads()">Download &amp; Continue →</button>
+    </div>
+  </div>
+
+  <!-- Step 5: Ready -->
+  <div class="step" id="step5">
+    <div class="step-icon">✅</div>
+    <h1>SVRN is ready</h1>
+    <p>Your offline knowledge base is set up. Downloads (if any) continue in the background.</p>
+
+    <div class="feature-grid">
+      <div class="feature-chip"><strong>📖 Library</strong>ZIM offline articles</div>
+      <div class="feature-chip"><strong>🗺️ Maps</strong>Offline vector maps</div>
+      <div class="feature-chip"><strong>🤖 AI Chat</strong>Local Ollama models</div>
+      <div class="feature-chip"><strong>📝 Notes</strong>Local markdown notes</div>
+      <div class="feature-chip"><strong>🔧 Data Tools</strong>CyberChef bundled</div>
+      <div class="feature-chip"><strong>🌿 OSE Wiki</strong>Open Source Ecology</div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="openDashboard()">Open SVRN →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let curStep = 1;
+let chosenPath = null;
+let ollamaOk = false;
+const selectedContent = new Set();
+
+const STARTER_CONTENT = [
+  { id:'wikipedia_en_all_nopic', name:'Wikipedia (text only)', desc:'Complete English Wikipedia — 6M+ articles', size:'52 GB', checked:false },
+  { id:'wikipedia_en_medicine_maxi', name:'Wikipedia Medicine', desc:'Drugs, conditions, procedures', size:'2.2 GB', checked:true },
+  { id:'medlineplus_en', name:'MedlinePlus', desc:'17,000+ health articles from US NLM', size:'2 GB', checked:false },
+  { id:'wikibooks_en_nopic', name:'Wikibooks (text only)', desc:'118,000+ open-content textbooks', size:'3.1 GB', checked:false },
+  { id:'based_cooking', name:'based.cooking', desc:'500+ simple practical recipes', size:'20 MB', checked:true },
+  { id:'zimgit_medicine', name:'Field & Emergency Medicine', desc:'Field care and trauma manuals', size:'70 MB', checked:false },
+];
+
+const STARTER_MODELS = [
+  { id:'llama3.2:3b', name:'Llama 3.2 (3B) — AI Model', desc:'Fast, lightweight — great for most tasks', size:'2 GB', checked:true },
+  { id:'llama3.2:8b', name:'Llama 3.2 (8B) — AI Model', desc:'More capable, slower on older Macs', size:'4.9 GB', checked:false },
+];
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function goStep(n) {
+  document.getElementById('step' + curStep).classList.remove('active');
+  curStep = n;
+  document.getElementById('step' + curStep).classList.add('active');
+  document.getElementById('progFill').style.width = (n / 5 * 100) + '%';
+
+  if (n === 3) checkOllama();
+  if (n === 4) renderContentGrid();
+}
+
+// ── Step 2: Storage ───────────────────────────────────────────────────────────
+function chooseStorage() {
+  // Use the /api/config/storage dialog shim — ask dashboard to open native picker
+  fetch('/api/setup/choose-folder', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.path) {
+        chosenPath = d.path;
+        const box = document.getElementById('storageBox');
+        box.classList.add('selected');
+        box.querySelector('div').textContent = '✅';
+        box.querySelector('div + div').textContent = 'Folder selected';
+        const pathEl = document.getElementById('storagePath');
+        pathEl.textContent = d.path;
+        pathEl.style.display = 'block';
+        document.getElementById('storageNext').disabled = false;
+      }
+    })
+    .catch(() => {
+      // Fallback: prompt for manual entry
+      const p = prompt('Enter the full path to your storage folder:\n(e.g. /Volumes/MyDrive/SVRN or ' + (location.pathname || '/Users/you/SVRN') + ')');
+      if (p && p.trim()) {
+        chosenPath = p.trim();
+        const box = document.getElementById('storageBox');
+        box.classList.add('selected');
+        document.getElementById('storagePath').textContent = chosenPath;
+        document.getElementById('storagePath').style.display = 'block';
+        document.getElementById('storageNext').disabled = false;
+      }
+    });
+}
+
+function saveStorage() {
+  if (!chosenPath) return;
+  fetch('/api/config/storage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: chosenPath }),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok) goStep(3);
+    else alert('Could not save storage path: ' + (d.error || 'unknown error'));
+  })
+  .catch(e => alert('Error: ' + e));
+}
+
+// ── Step 3: Ollama ────────────────────────────────────────────────────────────
+function checkOllama() {
+  document.getElementById('ollamaStatusTitle').textContent = 'Checking…';
+  document.getElementById('ollamaStatusDesc').textContent  = 'Looking for Ollama on your system';
+  document.getElementById('ollamaDot').className = 'status-dot gray';
+  document.getElementById('ollamaActions').style.display  = 'none';
+  document.getElementById('ollamaNext').disabled = true;
+
+  fetch('/api/services')
+    .then(r => r.json())
+    .then(svcs => {
+      const bin = svcs.find(s => s.id === 'ollama_binary');
+      const running = svcs.find(s => s.id === 'ollama');
+      if (running && running.up) {
+        document.getElementById('ollamaDot').className = 'status-dot green';
+        document.getElementById('ollamaStatusTitle').textContent = '✓ Ollama is running';
+        document.getElementById('ollamaStatusDesc').textContent  = 'AI chat is ready to use';
+        document.getElementById('ollamaNext').disabled = false;
+        ollamaOk = true;
+      } else if (bin && bin.installed) {
+        document.getElementById('ollamaDot').className = 'status-dot yellow';
+        document.getElementById('ollamaStatusTitle').textContent = 'Ollama found but not running';
+        document.getElementById('ollamaStatusDesc').textContent  = bin.path + ' — it will start automatically on next launch';
+        document.getElementById('ollamaNext').disabled = false;
+        ollamaOk = true;
+      } else {
+        document.getElementById('ollamaDot').className = 'status-dot gray';
+        document.getElementById('ollamaStatusTitle').textContent = 'Ollama not found';
+        document.getElementById('ollamaStatusDesc').textContent  = 'Install Ollama to enable the AI assistant';
+        document.getElementById('ollamaActions').style.display = 'block';
+      }
+    })
+    .catch(() => {
+      document.getElementById('ollamaStatusTitle').textContent = 'Could not check';
+      document.getElementById('ollamaStatusDesc').textContent  = 'Dashboard may still be starting up';
+      document.getElementById('ollamaActions').style.display = 'block';
+    });
+}
+
+// ── Step 4: Content ───────────────────────────────────────────────────────────
+function renderContentGrid() {
+  const grid = document.getElementById('contentGrid');
+  grid.innerHTML = '';
+  const all = [...STARTER_CONTENT, ...(ollamaOk ? STARTER_MODELS : [])];
+  all.forEach(item => {
+    if (item.checked) selectedContent.add(item.id);
+    const el = document.createElement('div');
+    el.className = 'content-item' + (item.checked ? ' checked' : '');
+    el.dataset.id = item.id;
+    el.innerHTML = `
+      <input type="checkbox" ${item.checked ? 'checked' : ''} onchange="toggleContent('${item.id}', this)">
+      <div class="content-info">
+        <div class="content-name">${item.name}</div>
+        <div class="content-desc">${item.desc}</div>
+        <div class="content-size">${item.size}</div>
+      </div>`;
+    el.onclick = e => {
+      if (e.target.tagName !== 'INPUT') {
+        const cb = el.querySelector('input');
+        cb.checked = !cb.checked;
+        toggleContent(item.id, cb);
+      }
+    };
+    grid.appendChild(el);
+  });
+}
+
+function toggleContent(id, cb) {
+  const el = cb.closest('.content-item');
+  if (cb.checked) { selectedContent.add(id); el.classList.add('checked'); }
+  else { selectedContent.delete(id); el.classList.remove('checked'); }
+  document.getElementById('downloadBtn').textContent =
+    selectedContent.size ? `Download ${selectedContent.size} item${selectedContent.size > 1 ? 's' : ''} & Continue →` : 'Skip downloads';
+}
+
+function startDownloads() {
+  if (!selectedContent.size) { goStep(5); return; }
+
+  // Split into ZIM and Ollama downloads
+  const modelIds = new Set(STARTER_MODELS.map(m => m.id));
+  const promises = [];
+
+  for (const id of selectedContent) {
+    const type = modelIds.has(id) ? 'ollama' : 'zim';
+    const payload = type === 'ollama' ? { type, id } : { type: 'zim', id };
+    promises.push(
+      fetch('/api/library/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).then(r => r.json())
+    );
+  }
+
+  Promise.all(promises)
+    .then(() => goStep(5))
+    .catch(e => {
+      console.error(e);
+      goStep(5); // continue even if queuing fails
+    });
+}
+
+// ── Step 5: Open dashboard ────────────────────────────────────────────────────
+function openDashboard() {
+  window.location.href = '/';
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+// Check if storage is already configured — skip to step 3 if so
+fetch('/api/config/storage')
+  .then(r => r.json())
+  .then(d => {
+    if (d.configured) {
+      chosenPath = d.path;
+      // Already set up — skip to content step
+      goStep(3);
+    }
+  })
+  .catch(() => {});
+</script>
+</body>
+</html>

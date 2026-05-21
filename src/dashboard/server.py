@@ -1676,6 +1676,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             "/codeassist": "/codeassist.html",
             "/ose":        "/ose.html",
             "/reader":     "/reader.html",
+            "/setup":      "/setup.html",
         }
         if clean_path in page_map:
             self.path = page_map[clean_path]
@@ -2029,6 +2030,30 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     self._json(400, {"error": "Path does not exist"}); return
                 set_storage_root(path)
                 self._json(200, {"ok": True, "path": str(path)})
+
+            # ── Setup Wizard: native folder picker via AppleScript ─────────
+            elif clean_path == "/api/setup/choose-folder":
+                try:
+                    script = (
+                        'tell application "Finder"\n'
+                        '  set chosen to choose folder with prompt "Choose where to store your SVRN library"\n'
+                        '  return POSIX path of chosen\n'
+                        'end tell'
+                    )
+                    result = subprocess.run(
+                        ["osascript", "-e", script],
+                        capture_output=True, text=True, timeout=60,
+                    )
+                    if result.returncode == 0:
+                        chosen = result.stdout.strip().rstrip("/")
+                        p = Path(chosen)
+                        p.mkdir(parents=True, exist_ok=True)
+                        self._json(200, {"path": str(p)})
+                    else:
+                        # User cancelled
+                        self._json(200, {"path": None, "cancelled": True})
+                except Exception as e:
+                    self._json(400, {"error": str(e)})
 
             else:
                 self._json(404, {"error": "not found"})
