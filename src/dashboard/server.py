@@ -2073,11 +2073,22 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    global PORT
+    import socketserver as _ss
+
     SVRN_CONFIG.mkdir(parents=True, exist_ok=True)
 
-    # Bind with SO_REUSEADDR and port fallback
-    sock, PORT = bind_port("dashboard")
+    # Find an available port with SO_REUSEADDR + fallback.
+    # bind_port() returns a listening socket; we hand it directly to a subclassed
+    # HTTPServer that skips the normal socket-creation path.
+    _sock, PORT = bind_port("dashboard")
+
+    class _SVRNDashServer(HTTPServer):
+        """HTTPServer pre-initialised with an externally bound socket."""
+        def __init__(self, addr, handler, sock):
+            # Call BaseServer.__init__ to set up handler/address bookkeeping,
+            # but skip HTTPServer.__init__ which would create and bind a new socket.
+            _ss.BaseServer.__init__(self, addr, handler)
+            self.socket = sock  # already bound + listening
 
     # Start content download queue worker
     threading.Thread(target=_cq_worker, daemon=True, name="cq-worker").start()
@@ -2089,9 +2100,7 @@ if __name__ == "__main__":
     print(f"Ollama:  {ollama_bin or 'NOT FOUND'}")
 
     try:
-        server = HTTPServer(("127.0.0.1", PORT), DashboardHandler)
-        server.socket = sock
-        server.server_address = ("127.0.0.1", PORT)
+        server = _SVRNDashServer(("127.0.0.1", PORT), DashboardHandler, _sock)
         server.serve_forever()
     except KeyboardInterrupt:
         print("Dashboard stopped")

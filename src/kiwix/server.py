@@ -415,8 +415,17 @@ def _rescan_loop():
 
 
 if __name__ == "__main__":
-    # Bind with SO_REUSEADDR and port fallback
-    sock, port = bind_port("kiwix")
+    import socketserver as _ss
+    import threading
+
+    # Find an available port with SO_REUSEADDR + fallback.
+    _sock, port = bind_port("kiwix")
+
+    class _SVRNZIMServer(HTTPServer):
+        """HTTPServer pre-initialised with an externally bound socket."""
+        def __init__(self, addr, handler, sock):
+            _ss.BaseServer.__init__(self, addr, handler)
+            self.socket = sock  # already bound + listening
 
     print(f"SVRN ZIM Server  →  http://localhost:{port}")
     storage = get_storage_root()
@@ -424,13 +433,10 @@ if __name__ == "__main__":
     load_archives()
     print(f"Loaded {len(_archives)} ZIM archive(s)")
 
-    import threading
     threading.Thread(target=_rescan_loop, daemon=True).start()
 
     try:
-        server = HTTPServer(("127.0.0.1", port), ZIMHandler)
-        server.socket = sock
-        server.server_address = ("127.0.0.1", port)
+        server = _SVRNZIMServer(("127.0.0.1", port), ZIMHandler, _sock)
         server.serve_forever()
     except KeyboardInterrupt:
         print("ZIM server stopped")
