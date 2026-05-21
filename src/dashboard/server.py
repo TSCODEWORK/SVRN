@@ -8,18 +8,32 @@ Port is auto-assigned (primary: 3333) with SO_REUSEADDR fallback.
 Actual port written to ~/.config/svrn/ports.json.
 """
 
+import base64
+import html as _html
+import logging
+import mimetypes
 import os
+import re
+import signal
 import sys
 import json
+import tempfile
 import time
 import socket
 import shutil
 import subprocess
 import threading
+import uuid
+import urllib.parse
 import urllib.request
 import urllib.error
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
+
+_log = logging.getLogger(__name__)
+
+# Maximum POST body size — guards against memory exhaustion from large uploads.
+_MAX_POST_BYTES = 50 * 1024 * 1024  # 50 MB
 
 # Allow running directly or imported from the app bundle
 try:
@@ -39,9 +53,6 @@ except ImportError:
     )
 
 DASHBOARD_DIR = Path(__file__).parent
-
-# Port constant used in URL building — updated after bind
-PORT = 3333
 
 # ── ZIM library sub-directory names (searched in order, relative to storage root)
 ZIM_SUBDIRS = ["zim", "Wikipedia", "Medical", "Education", "Books", "kiwix", "Survival"]
@@ -123,7 +134,6 @@ def get_system_info():
             "AC" if "AC Power" in out else
             "Battery" if "Battery Power" in out else "Unknown"
         )
-        import re
         m = re.search(r"(\d+)%", out)
         info["battery_pct"] = int(m.group(1)) if m else None
         info["charging"] = any(w in out.lower() for w in ("charging", "finishing charge"))
@@ -132,7 +142,6 @@ def get_system_info():
 
     try:
         vm = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=3).stdout
-        import re
         stats = {
             m.group(1).strip(): int(m.group(2))
             for m in (re.match(r"^(.+?):\s+(\d+)", ln) for ln in vm.split("\n")) if m
@@ -413,7 +422,6 @@ def cancel_map_download():
         pid = _dl_state.get("pid")
         if pid:
             try:
-                import signal
                 os.kill(pid, signal.SIGTERM)
             except Exception:
                 pass
@@ -574,7 +582,6 @@ def _build_combined_style(installed_ids: list, override_urls: dict = None) -> di
 # Chat Session Management
 # ═══════════════════════════════════════════════════
 
-import uuid as _uuid_mod
 from datetime import datetime as _dt
 
 
@@ -634,7 +641,7 @@ def delete_chat_session(session_id: str) -> bool:
 
 def new_chat_session() -> dict:
     session = {
-        "id":         str(_uuid_mod.uuid4()),
+        "id":         str(uuid.uuid4()),
         "title":      "New Chat",
         "created_at": _dt.utcnow().isoformat(),
         "updated_at": _dt.utcnow().isoformat(),
@@ -650,32 +657,27 @@ def new_chat_session() -> dict:
 
 def _fetch_zim_article_text(zim_name: str, path: str) -> str:
     """Fetch and strip-to-text a ZIM article from the kiwix server."""
-    import re as _re2
-    import urllib.parse as _up2
     if not zim_name:
         return ""
     kp  = get_port("kiwix")
     url = (
         f"http://127.0.0.1:{kp}/zim/"
-        + _up2.quote(zim_name, safe="")
+        + urllib.parse.quote(zim_name, safe="")
         + "/"
-        + _up2.quote(path, safe="/")
+        + urllib.parse.quote(path, safe="/")
     )
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "SVRN-reader/1.0"})
         with urllib.request.urlopen(req, timeout=6) as resp:
-            html = resp.read().decode("utf-8", errors="replace")
+            raw = resp.read().decode("utf-8", errors="replace")
     except Exception:
         return ""
-    html = _re2.sub(r"<script[^>]*>.*?</script>", " ", html, flags=_re2.DOTALL | _re2.IGNORECASE)
-    html = _re2.sub(r"<style[^>]*>.*?</style>",   " ", html, flags=_re2.DOTALL | _re2.IGNORECASE)
-    html = _re2.sub(r"<[^>]+>", " ", html)
-    for ent, ch in [("&nbsp;"," "),("&amp;","&"),("&lt;","<"),
-                    ("&gt;",">"),("&quot;",'"'),("&#39;","'")]:
-        html = html.replace(ent, ch)
-    html = _re2.sub(r"&#\d+;", " ", html)
-    html = _re2.sub(r"\s+", " ", html).strip()
-    return html[:10000]
+    raw = re.sub(r"<script[^>]*>.*?</script>", " ", raw, flags=re.DOTALL | re.IGNORECASE)
+    raw = re.sub(r"<style[^>]*>.*?</style>",   " ", raw, flags=re.DOTALL | re.IGNORECASE)
+    raw = re.sub(r"<[^>]+>", " ", raw)
+    raw = _html.unescape(raw)
+    raw = re.sub(r"\s+", " ", raw).strip()
+    return raw[:10000]
 
 
 # ═══════════════════════════════════════════════════
@@ -689,8 +691,6 @@ def zim_rag_search(query: str, max_results: int = 4, excerpt_len: int = 600) -> 
         from libzim.search import Query, Searcher
     except ImportError:
         return []
-
-    import re as _rer
 
     kp         = get_port("kiwix")
     results    = []
@@ -727,8 +727,8 @@ def zim_rag_search(query: str, max_results: int = 4, excerpt_len: int = 600) -> 
                             continue
                         seen_titles.add(title)
                         raw     = bytes(entry.get_item().content).decode("utf-8", errors="replace")
-                        text    = _rer.sub(r'\s+', ' ',
-                                  _rer.sub(r'<[^>]+>', ' ', raw)).strip()
+                        text    = re.sub(r'\s+', ' ',
+                                  re.sub(r'<[^>]+>', ' ', raw)).strip()
                         excerpt = text[:excerpt_len]
                         url     = f"http://localhost:{kp}/zim/{zim_path.stem}/{path}"
                         results.append({
@@ -758,7 +758,6 @@ def extract_file_text(data: bytes, filename: str, mime_type: str = "") -> str:
             return ""
     if fname.endswith(".pdf") or "pdf" in mime_type:
         try:
-            import tempfile, os as _os
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
                 tmp.write(data)
                 tmp_path = tmp.name
@@ -767,17 +766,17 @@ def extract_file_text(data: bytes, filename: str, mime_type: str = "") -> str:
                 ["textutil", "-convert", "txt", "-output", out_path, tmp_path],
                 capture_output=True, timeout=15,
             )
-            _os.unlink(tmp_path)
-            if _os.path.exists(out_path):
-                text = open(out_path).read()
-                _os.unlink(out_path)
+            os.unlink(tmp_path)
+            if os.path.exists(out_path):
+                with open(out_path) as f:
+                    text = f.read()
+                os.unlink(out_path)
                 return text[:8000]
         except Exception:
-            pass
+            _log.warning("PDF text extraction failed for %s", fname, exc_info=True)
         return "[PDF content could not be extracted]"
     if fname.endswith((".jpg",".jpeg",".png",".gif",".webp",".bmp")):
-        import base64 as _b64
-        return f"[IMAGE:{_b64.b64encode(data).decode()}]"
+        return f"[IMAGE:{base64.b64encode(data).decode()}]"
     try:
         return data.decode("utf-8", errors="replace")[:4000]
     except Exception:
@@ -825,7 +824,6 @@ def get_note(note_id: str) -> dict:
 
 
 def create_note(title: str, content: str) -> dict:
-    import uuid
     notes = _load_notes_raw()
     now   = time.time()
     note  = {"id": str(uuid.uuid4()), "title": title, "content": content,
@@ -1112,9 +1110,9 @@ OLLAMA_CATALOG = {
 # Content Download Queue
 # ═══════════════════════════════════════════════════
 
-_cq_jobs:   list = []
-_cq_active: dict = None
-_cq_lock         = threading.Lock()
+_cq_jobs:   list       = []
+_cq_active: dict | None = None
+_cq_lock                = threading.Lock()
 
 
 def _cq_worker():
@@ -1242,7 +1240,7 @@ def _cq_pull_ollama(job: dict):
 
 def cq_enqueue(job_data: dict) -> dict:
     job = {
-        "id":               str(_uuid_mod.uuid4())[:8],
+        "id":               str(uuid.uuid4())[:8],
         "status":           "queued",
         "progress":         0,
         "downloaded_bytes": 0,
@@ -1447,10 +1445,7 @@ def ose_search(query: str, limit: int = 40) -> list:
 
 
 def ose_get_article(name: str) -> dict:
-    import re as _re
-    from urllib.parse import unquote as _unquote
-
-    decoded = _unquote(name)
+    decoded = urllib.parse.unquote(name)
     if '..' in decoded or decoded.startswith('/') or decoded.startswith('.'):
         return {"error": "invalid"}
 
@@ -1459,7 +1454,7 @@ def ose_get_article(name: str) -> dict:
         return {"error": "OSE wiki not found in storage"}
 
     def _find_file(n):
-        candidates = [d / "wiki" / f"{n}.html", d / "wiki" / f"{_unquote(n)}.html"]
+        candidates = [d / "wiki" / f"{n}.html", d / "wiki" / f"{urllib.parse.unquote(n)}.html"]
         for c in candidates:
             if c.exists():
                 return c
@@ -1503,7 +1498,7 @@ def ose_get_article(name: str) -> dict:
         if article.startswith('http') or article.startswith('//'):
             return mm.group(0)
         try:
-            article = _unquote(article)
+            article = urllib.parse.unquote(article)
         except Exception:
             pass
         return f'href="javascript:void(0)" data-article="{article}"'
@@ -1533,8 +1528,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        import urllib.parse as _up
-
         routes = {
             "/health":                   lambda: {"status": "ok", "service": "svrn-dashboard"},
             "/api/ports":                lambda: {"dashboard": get_port("dashboard"), "kiwix": get_port("kiwix")},
@@ -1558,7 +1551,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             },
         }
 
-        clean_path = _up.urlparse(self.path).path
+        clean_path = urllib.parse.urlparse(self.path).path
 
         if clean_path in routes:
             try:
@@ -1580,11 +1573,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         # File API
         if clean_path == "/api/files/read":
-            qs  = _up.parse_qs(_up.urlparse(self.path).query)
+            qs  = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             raw = qs.get("path", [""])[0]
             self._json(200, file_read(raw)); return
         if clean_path == "/api/files/list":
-            qs  = _up.parse_qs(_up.urlparse(self.path).query)
+            qs  = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             raw = qs.get("path", [str(HOME)])[0]
             self._json(200, file_list(raw)); return
 
@@ -1613,13 +1606,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             d = get_ose_wiki_dir()
             self._json(200, {"available": d is not None, "path": str(d) if d else None}); return
         if clean_path.startswith("/api/ose/search"):
-            qs = _up.parse_qs(_up.urlparse(self.path).query)
+            qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             q  = qs.get("q", [""])[0].strip()
             self._json(200, ose_search(q) if q else []); return
         if clean_path.startswith("/api/ose/article"):
-            from urllib.parse import unquote
-            qs   = _up.parse_qs(_up.urlparse(self.path).query)
-            name = unquote(qs.get("name", [""])[0].strip())
+            qs   = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            name = urllib.parse.unquote(qs.get("name", [""])[0].strip())
             self._json(200, ose_get_article(name)); return
         if clean_path.startswith("/ose-wiki/images/"):
             self._serve_ose_image(clean_path[len("/ose-wiki/images/"):]); return
@@ -1655,7 +1647,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         # /api/reader/article — fetch plain text of a ZIM article for AI context
         if clean_path == "/api/reader/article":
-            _aq = _up.parse_qs(_up.urlparse(self.path).query)
+            _aq = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             zn  = _aq.get("zim",  [""])[0]
             ap  = _aq.get("path", [""])[0]
             txt = _fetch_zim_article_text(zn, ap)
@@ -1691,27 +1683,24 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def _serve_ose_image(self, rel: str):
-        import mimetypes as _mt
-        from urllib.parse import unquote as _uq
-        import re as _re
         d = get_ose_wiki_dir()
         if not d:
             self.send_response(404); self.end_headers(); return
-        img_path = d / "images" / _uq(rel)
+        img_path = d / "images" / urllib.parse.unquote(rel)
         if not img_path.exists() and "thumb/" in rel:
-            parts = _uq(rel).split("/")
+            parts = urllib.parse.unquote(rel).split("/")
             if len(parts) >= 5:
                 img_path = d / "images" / "/".join(parts[1:4])
         if not img_path.exists() or not img_path.is_file():
-            flat_name = _uq(rel).split("/")[-1]
-            stripped  = _re.sub(r'^\d+px-', '', flat_name)
+            flat_name = urllib.parse.unquote(rel).split("/")[-1]
+            stripped  = re.sub(r'^\d+px-', '', flat_name)
             for candidate in (d / flat_name, d / stripped):
                 if candidate.exists() and candidate.is_file():
                     img_path = candidate
                     break
         if not img_path.exists() or not img_path.is_file():
             self.send_response(404); self.end_headers(); return
-        ctype, _ = _mt.guess_type(str(img_path))
+        ctype, _ = mimetypes.guess_type(str(img_path))
         data = img_path.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type",   ctype or "application/octet-stream")
@@ -1721,7 +1710,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def _serve_pmtiles(self, name: str):
-        import re as _re
         name = name.strip("/").split("?")[0]
         if not name.replace("-", "").replace("_", "").isalnum():
             self._json(400, {"error": "invalid name"}); return
@@ -1741,7 +1729,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         file_size = os.path.getsize(filepath)
         range_hdr = self.headers.get("Range", "")
-        m = _re.match(r"bytes=(\d+)-(\d*)", range_hdr)
+        m = re.match(r"bytes=(\d+)-(\d*)", range_hdr)
         if m:
             start  = int(m.group(1))
             end    = int(m.group(2)) if m.group(2) else file_size - 1
@@ -1770,9 +1758,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(data)
 
     def do_PUT(self):
-        import urllib.parse as _up
-        clean_path = _up.urlparse(self.path).path
+        clean_path = urllib.parse.urlparse(self.path).path
         length = int(self.headers.get("Content-Length", 0))
+        if length > _MAX_POST_BYTES:
+            self._json(413, {"error": "Request body too large"}); return
         body   = json.loads(self.rfile.read(length) or b"{}") if length else {}
         try:
             if clean_path.startswith("/api/notes/"):
@@ -1785,8 +1774,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self._json(400, {"error": str(e)})
 
     def do_DELETE(self):
-        import urllib.parse as _up
-        clean_path = _up.urlparse(self.path).path
+        clean_path = urllib.parse.urlparse(self.path).path
         try:
             if clean_path.startswith("/api/notes/"):
                 note_id = clean_path[len("/api/notes/"):]
@@ -1797,9 +1785,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self._json(400, {"error": str(e)})
 
     def do_POST(self):
-        import urllib.parse as _up
-        clean_path = _up.urlparse(self.path).path
+        clean_path = urllib.parse.urlparse(self.path).path
         length = int(self.headers.get("Content-Length", 0))
+        if length > _MAX_POST_BYTES:
+            self._json(413, {"error": "Request body too large"}); return
         body   = json.loads(self.rfile.read(length) or b"{}") if length else {}
 
         try:
@@ -1825,8 +1814,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self._json(200, {"results": results}); return
 
             if clean_path == "/api/chat/upload":
-                import base64 as _b64
-                file_data = _b64.b64decode(body.get("data", ""))
+                file_data = base64.b64decode(body.get("data", ""))
                 filename  = body.get("filename", "file.txt")
                 mime      = body.get("mime", "")
                 text      = extract_file_text(file_data, filename, mime)
@@ -1924,9 +1912,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     method="POST",
                 )
                 try:
-                    ollama_resp = urllib.request.urlopen(req, timeout=120)
+                    ollama_resp = urllib.request.urlopen(req, timeout=30)
                 except Exception as e:
-                    self._json(503, {"error": f"Ollama unreachable: {e}"}); return
+                    self._json(503, {"error": f"Ollama unreachable: {e}. Is Ollama running?"}); return
 
                 self.send_response(200)
                 self.send_header("Content-Type",  "text/event-stream; charset=utf-8")

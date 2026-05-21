@@ -10,14 +10,23 @@ Usage:
     python3 launcher/launch.py [--no-browser]
 """
 
+import logging
 import os
 import sys
 import time
 import signal
 import subprocess
 import threading
+import traceback
 import webbrowser
 from pathlib import Path
+
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+_log = logging.getLogger("launcher")
 
 # ── Resolve paths relative to this launcher ──────────────────────────────────
 # Works whether running from:
@@ -54,6 +63,7 @@ try:
     from config import SVRN_CONFIG, get_storage_root, get_port, find_ollama
 except ImportError as e:
     print(f"FATAL: Cannot import config module: {e}")
+    traceback.print_exc()
     print(f"  SRC_DIR: {SRC_DIR}")
     print(f"  sys.path: {sys.path[:3]}")
     sys.exit(1)
@@ -74,11 +84,13 @@ SERVICES = [
 ]
 
 _procs: list = []
+_restart_counts: dict = {}  # service name → consecutive crash count
 
 
 def _start_service(svc: dict) -> subprocess.Popen:
-    env = {**os.environ, **svc.get("env", {})}
-    env["PYTHONPATH"] = svc["env"].get("PYTHONPATH", str(SRC_DIR))
+    env = {**os.environ}
+    env["PYTHONPATH"] = str(SRC_DIR)
+    env.update(svc.get("env", {}))
     proc = subprocess.Popen(
         [PYTHON, str(svc["script"])],
         env=env,
@@ -184,13 +196,17 @@ def main():
 
     print("\nSVRN is running. Press Ctrl+C to stop.\n")
 
-    # Monitor services — restart if they exit unexpectedly
+    # Monitor services — restart on unexpected exit with exponential backoff
     while True:
         for i, proc in enumerate(_procs):
             ret = proc.poll()
             if ret is not None:
-                svc = SERVICES[i]
-                print(f"  [WARN] {svc['name']} exited (code {ret}) — restarting…")
+                svc   = SERVICES[i]
+                count = _restart_counts.get(svc["name"], 0)
+                delay = min(5 * (2 ** count), 60)  # 5 → 10 → 20 → 40 → 60s cap
+                _restart_counts[svc["name"]] = count + 1
+                print(f"  [WARN] {svc['name']} exited (code {ret}) — restart #{count + 1} in {delay}s…")
+                time.sleep(delay)
                 new_proc = _start_service(svc)
                 _procs[i] = new_proc
                 t = threading.Thread(

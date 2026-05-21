@@ -8,6 +8,7 @@ Paths: zero hardcoded — reads from ~/.config/svrn/ports.json at runtime.
 """
 
 import json
+import logging
 import os
 import shutil
 import socket
@@ -26,7 +27,9 @@ _src = Path(__file__).resolve().parent.parent
 if str(_src) not in sys.path:
     sys.path.insert(0, str(_src))
 
-from config import get_port, get_storage_root, find_ollama, SVRN_CONFIG
+from config import get_port, get_storage_root, find_ollama, get_config, SVRN_CONFIG
+
+_log = logging.getLogger(__name__)
 
 POLL_INTERVAL = 12  # seconds
 
@@ -138,18 +141,19 @@ class SVRNApp(rumps.App):
             try:
                 self._update()
             except Exception:
-                pass
+                _log.warning("Status poll failed", exc_info=True)
             time.sleep(POLL_INTERVAL)
 
     def _update(self):
         # Grab dynamic ports
-        dash_port  = get_port("dashboard")
-        kiwix_port = get_port("kiwix")
+        dash_port   = get_port("dashboard")
+        kiwix_port  = get_port("kiwix")
+        ollama_port = get_config("ollama_port", 11434)
 
         # Service checks
         dash_up   = _port_open(dash_port)
         kiwix_up  = _port_open(kiwix_port)
-        ollama_up = _port_open(11434)
+        ollama_up = _port_open(ollama_port)
 
         # Storage
         si = _storage_info()
@@ -172,7 +176,7 @@ class SVRNApp(rumps.App):
 
         # Ollama
         if ollama_up:
-            tags = _fetch_json("http://127.0.0.1:11434/api/tags")
+            tags = _fetch_json(f"http://127.0.0.1:{ollama_port}/api/tags")
             if tags:
                 model_count = len(tags.get("models", []))
                 ollama_text = f"🤖  AI: {model_count} model{'s' if model_count != 1 else ''} ready"

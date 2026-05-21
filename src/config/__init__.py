@@ -9,9 +9,12 @@ or absolute path that doesn't start with a runtime variable.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import socket
 from pathlib import Path
+
+_log = logging.getLogger(__name__)
 
 # ── Well-known locations (never hardcoded usernames) ─────────────────────────
 
@@ -36,7 +39,10 @@ def _load_config() -> dict:
     """Load ~/.config/svrn/config.json — returns {} if missing or corrupt."""
     try:
         return json.loads(CONFIG_FILE.read_text())
+    except FileNotFoundError:
+        return {}
     except Exception:
+        _log.warning("Failed to load config from %s", CONFIG_FILE, exc_info=True)
         return {}
 
 
@@ -57,6 +63,8 @@ def get_storage_root() -> Path | None:
 
 
 def set_storage_root(path: Path) -> None:
+    if not path.exists():
+        raise ValueError(f"Storage path does not exist: {path}")
     cfg = _load_config()
     cfg["storage_root"] = str(path)
     _save_config(cfg)
@@ -138,6 +146,7 @@ def bind_port(service: str, preferred: int | None = None) -> tuple[socket.socket
     primary = preferred or DEFAULT_PORTS.get(service, 8000)
     last_exc = None
     for port in (primary, primary + 1, primary + 2):
+        sock = None  # ensure defined before try so except can safely close it
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -146,7 +155,7 @@ def bind_port(service: str, preferred: int | None = None) -> tuple[socket.socket
             _record_port(service, port)
             return sock, port
         except OSError as e:
-            if sock:
+            if sock is not None:
                 try:
                     sock.close()
                 except Exception:
@@ -163,9 +172,13 @@ def _record_port(service: str, port: int) -> None:
     try:
         existing = json.loads(PORTS_FILE.read_text()) if PORTS_FILE.exists() else {}
     except Exception:
+        _log.warning("Failed to read ports file, starting fresh", exc_info=True)
         existing = {}
     existing[service] = port
-    PORTS_FILE.write_text(json.dumps(existing, indent=2))
+    try:
+        PORTS_FILE.write_text(json.dumps(existing, indent=2))
+    except Exception:
+        _log.warning("Failed to write ports file", exc_info=True)
 
 
 def get_port(service: str) -> int:
@@ -173,5 +186,8 @@ def get_port(service: str) -> int:
     try:
         data = json.loads(PORTS_FILE.read_text())
         return data[service]
+    except FileNotFoundError:
+        pass
     except Exception:
-        return DEFAULT_PORTS.get(service, 8000)
+        _log.warning("Failed to read port for %s", service, exc_info=True)
+    return DEFAULT_PORTS.get(service, 8000)

@@ -8,6 +8,7 @@ Port is auto-assigned (primary: 8888) with SO_REUSEADDR fallback.
 Actual port written to ~/.config/svrn/ports.json.
 """
 
+import logging
 import os
 import sys
 import re
@@ -15,6 +16,8 @@ import json
 import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
+
+_log = logging.getLogger(__name__)
 
 # Allow running directly or imported from the app bundle
 # sys.path is adjusted by the launcher before this script starts.
@@ -38,7 +41,7 @@ def _scan_zim_paths() -> list:
             for zim_path in sorted(base.glob("*.zim")):
                 results.append({"path": str(zim_path), "dir": base.name})
         except Exception:
-            pass
+            _log.warning("Failed to scan ZIM directory %s", base, exc_info=True)
     return results
 
 
@@ -153,24 +156,27 @@ def rewrite_html(content_bytes: bytes, zim_name: str, article_path: str = "",
         article_base_dir = ""
 
     def fix_href(m):
-        url = m.group(1)
-        new = _resolve_url(url, prefix, article_base_dir)
+        quote = m.group(1)  # ' or "
+        url   = m.group(2)
+        new   = _resolve_url(url, prefix, article_base_dir)
         # In embedded mode propagate ?e=1 so every ZIM page stays embedded
         if embedded and new != url and new.startswith(prefix) and not _is_asset_url(new):
             new = new + ("&e=1" if "?" in new else "?e=1")
         if new == url:
             return m.group(0)
-        return f'href="{new}"'
+        return f'href={quote}{new}{quote}'
 
     def fix_src(m):
-        url = m.group(1)
-        new = _resolve_url(url, prefix, article_base_dir)
+        quote = m.group(1)  # ' or "
+        url   = m.group(2)
+        new   = _resolve_url(url, prefix, article_base_dir)
         if new == url:
             return m.group(0)
-        return f'src="{new}"'
+        return f'src={quote}{new}{quote}'
 
-    text = re.sub(r'href="([^"]*)"', fix_href, text)
-    text = re.sub(r'src="([^"]*)"',  fix_src,  text)
+    # Match both single- and double-quoted href/src attributes
+    text = re.sub(r'href=(["\'])([^"\']*)\1', fix_href, text)
+    text = re.sub(r'src=(["\'])([^"\']*)\1',  fix_src,  text)
 
     if embedded:
         # Inject a lightweight postMessage script so the parent reader can track
