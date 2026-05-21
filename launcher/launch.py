@@ -26,18 +26,29 @@ from pathlib import Path
 #   - any absolute path
 
 LAUNCHER_DIR = Path(__file__).resolve().parent
-APP_ROOT     = LAUNCHER_DIR.parent          # parent of launcher/
-SRC_DIR      = APP_ROOT / "src"
 
-# When bundled as .app, Python is at:
-#   SVRN.app/Contents/Resources/python/bin/python3
-# When running dev mode:
-#   system Python (this script's interpreter)
+# In the .app bundle, layout is:
+#   Contents/Resources/launcher/launch.py  ← this file
+#   Contents/Resources/src/               ← source modules
+#   Contents/Resources/python/            ← bundled Python
+#
+# In dev mode, layout is:
+#   launcher/launch.py
+#   src/
+APP_ROOT = LAUNCHER_DIR.parent   # Contents/Resources/ or repo root
+
+# Support both layouts
+if (APP_ROOT / "src").exists():
+    SRC_DIR = APP_ROOT / "src"
+else:
+    SRC_DIR = APP_ROOT   # flat dev layout fallback
+
 PYTHON = sys.executable
 
-# Add src/ to path so config module is found
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
+# Inject src/ into path so config/dashboard/kiwix modules are importable
+for p in (str(SRC_DIR), str(APP_ROOT)):
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 try:
     from config import SVRN_CONFIG, get_storage_root, get_port, find_ollama
