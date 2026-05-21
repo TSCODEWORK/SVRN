@@ -161,6 +161,8 @@ def get_system_info():
     except Exception:
         info.update(cpu_load_1m=None, cpu_pct=None)
 
+    info["python_path"] = sys.executable
+
     return info
 
 
@@ -1535,6 +1537,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         routes = {
             "/health":                   lambda: {"status": "ok", "service": "svrn-dashboard"},
+            "/api/ports":                lambda: {"dashboard": get_port("dashboard"), "kiwix": get_port("kiwix")},
             "/api/system":               get_system_info,
             "/api/services":             get_services_status,
             "/api/vault":                get_vault_info,

@@ -129,7 +129,7 @@ input[type=number]:focus{border-color:var(--accent);}
     <div class="info-item"><div class="info-lbl">Python</div><div class="info-val" id="inf-python">—</div></div>
     <div class="info-item"><div class="info-lbl">Vault</div><div class="info-val" id="inf-vault">—</div></div>
     <div class="info-item"><div class="info-lbl">Notes</div><div class="info-val" id="inf-notes">—</div></div>
-    <div class="info-item"><div class="info-lbl">Dashboard</div><div class="info-val" id="inf-port">:3333</div></div>
+    <div class="info-item"><div class="info-lbl">Dashboard</div><div class="info-val" id="inf-port">—</div></div>
   </div>
 
   <!-- Maps -->
@@ -285,21 +285,24 @@ let current = {};
 
 async function loadSettings() {
   try {
-    const [s, sys, vault, notes] = await Promise.all([
+    const [s, sys, vault, notes, ports] = await Promise.all([
       fetch('/api/settings').then(r => r.json()),
       fetch('/api/system').then(r => r.json()),
       fetch('/api/vault').then(r => r.json()),
       fetch('/api/notes').then(r => r.json()),
+      fetch('/api/ports').then(r => r.json()),
     ]);
     current = { ...DEFAULTS, ...s };
     applyToForm(current);
     // Info bar
-    document.getElementById('inf-python').textContent = '/opt/homebrew/bin/python3';
+    document.getElementById('inf-python').textContent = sys.python_path || 'bundled';
     document.getElementById('inf-vault').textContent = vault.connected
       ? vault.free_gb + ' GB free' : 'Not connected';
     document.getElementById('inf-notes').textContent = notes.length + ' notes';
+    document.getElementById('inf-port').textContent = ':' + (ports.dashboard || window.location.port || 3333);
   } catch(e) {
     applyToForm(DEFAULTS);
+    document.getElementById('inf-port').textContent = ':' + (window.location.port || 3333);
   }
 }
 

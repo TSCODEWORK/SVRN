@@ -398,6 +398,9 @@ const SP       = new URLSearchParams(location.search);
 const zimName  = SP.get('zim') || '';
 const initPath = SP.get('path') || '';
 
+// ── Dynamic ports (fetched once at startup) ───────────────────────────────────
+let KIWIX_PORT = 8888;   // default; overwritten after /api/ports fetch
+
 // ── State ────────────────────────────────────────────────────────────────────
 let hist      = [];    // [{path, title}]
 let hIdx      = -1;
@@ -429,6 +432,14 @@ async function init() {
       'No library specified. <a href="/library">← Library</a></div>';
     return;
   }
+
+  // Fetch dynamic ports first — kiwix may not be on 8888
+  try {
+    const pr = await fetch('/api/ports');
+    const pd = await pr.json();
+    if (pd.kiwix) KIWIX_PORT = pd.kiwix;
+  } catch(e) { /* fallback to default 8888 */ }
+
   // Nice display name — strip locale/date suffix
   const nice = zimName
     .replace(/_[a-z]{2,3}_all_\d{4}-\d{2}$/, '')
@@ -451,7 +462,7 @@ function navigate(path, push) {
     hIdx = hist.length - 1;
   }
   curPath   = path;
-  frame.src = 'http://localhost:8888/zim/' + encodeURIComponent(zimName) +
+  frame.src = 'http://localhost:' + KIWIX_PORT + '/zim/' + encodeURIComponent(zimName) +
               '/' + path + '?e=1';
   updateNavBtns();
   renderCrumb();

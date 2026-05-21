@@ -309,18 +309,21 @@ main{padding:36px 32px;max-width:1400px;margin:0 auto;}
 </div>
 
 <script>
+let KIWIX_PORT = 8888;   // default; overwritten by /api/ports at startup
+let DASHBOARD_PORT = window.location.port || 3333;
+
 const APPS = [
   { id:'ollama',    icon:'🤖', title:'AI Chat',        badge:'LOCAL AI', port:11434, action:'chat',
     desc:'Offline language models via Ollama. No cloud, no telemetry.' },
   { id:'openwebui', icon:'💬', title:'Open WebUI',     badge:'WEB UI',   port:8080,  action:'external', url:'http://localhost:8080',
     desc:'Full-featured chat interface with history, documents, and multi-model support.' },
-  { id:'wikipedia', icon:'📖', title:'Wikipedia',      badge:'OFFLINE',  port:8888,  action:'external', url:'http://localhost:8888',
+  { id:'wikipedia', icon:'📖', title:'Wikipedia',      badge:'OFFLINE',  port:'kiwix',  action:'external', url:null,
     desc:'Full offline Wikipedia — millions of articles, fully searchable.' },
-  { id:'medical',   icon:'🏥', title:'Medical Library', badge:'OFFLINE', port:8888,  action:'external', url:'http://localhost:8888',
+  { id:'medical',   icon:'🏥', title:'Medical Library', badge:'OFFLINE', port:'kiwix',  action:'external', url:null,
     desc:'Offline medical references: drugs, conditions, symptoms, procedures.' },
-  { id:'maps',      icon:'🗺️', title:'Offline Maps',   badge:'PMTILES',  port:3333,  action:'page',     url:'/maps',
+  { id:'maps',      icon:'🗺️', title:'Offline Maps',   badge:'PMTILES',  port:null,  action:'page',     url:'/maps',
     desc:'Vector maps from your vault. Navigate and explore without internet.' },
-  { id:'education', icon:'🎓', title:'Education',      badge:'OFFLINE',  port:8888,  action:'external', url:'http://localhost:8888',
+  { id:'education', icon:'🎓', title:'Education',      badge:'OFFLINE',  port:'kiwix',  action:'external', url:null,
     desc:'Khan Academy, textbooks, and learning resources — fully offline.' },
   { id:'notes',     icon:'📝', title:'Notes',          badge:'LOCAL',    port:null,  action:'page',     url:'/notes',
     desc:'Private markdown notes stored on your Mac. Auto-saves, full-text search, live preview.' },
@@ -344,11 +347,17 @@ function buildGrid() {
   const grid = document.getElementById('app-grid');
   grid.innerHTML = '';
   APPS.forEach(app => {
+    // Resolve kiwix port token to actual port number
+    const resolvedPort = app.port === 'kiwix' ? KIWIX_PORT : app.port;
+    const resolvedUrl  = app.url === null && app.port === 'kiwix'
+      ? 'http://localhost:' + KIWIX_PORT
+      : app.url;
+
     let dotCls, statusTxt;
-    if (app.port === null) {
+    if (resolvedPort === null) {
       dotCls = 'up'; statusTxt = 'Available';
     } else {
-      const up = svcStatus[app.port];
+      const up = svcStatus[resolvedPort];
       dotCls   = up === true ? 'up' : up === false ? 'down' : '';
       statusTxt= up === true ? 'Online' : up === false ? 'Offline' : 'Checking…';
     }
@@ -368,8 +377,8 @@ function buildGrid() {
     `;
     card.addEventListener('click', () => {
       if (app.action === 'chat')     { openChatFromCard(); return; }
-      if (app.action === 'external') { window.open(app.url,'_blank'); return; }
-      if (app.action === 'page')     { window.open(app.url,'_blank'); return; }
+      if (app.action === 'external') { window.open(resolvedUrl,'_blank'); return; }
+      if (app.action === 'page')     { window.open(resolvedUrl,'_blank'); return; }
     });
     grid.appendChild(card);
   });
@@ -416,7 +425,7 @@ function renderVaultBar(vault) {
   document.getElementById('v-prog').style.width = (vault.used_pct || 0) + '%';
   const zims = vault.zims_all || [];
   document.getElementById('v-zims').innerHTML = zims.length
-    ? zims.map(z => `<a class="zim-pill" href="http://localhost:8888/zim/${z.name}/" target="_blank">${z.name.replace(/_/g,' ')}</a>`).join('')
+    ? zims.map(z => `<a class="zim-pill" href="http://localhost:${KIWIX_PORT}/zim/${z.name}/" target="_blank">${z.name.replace(/_/g,' ')}</a>`).join('')
     : '<span style="font-size:13px;color:var(--dim)">No ZIM files on vault</span>';
   const maps = vault.maps || [];
   document.getElementById('v-maps').innerHTML = maps.length
@@ -461,7 +470,7 @@ You can answer questions about:
 - Technical questions about the system
 - Anything the user wants to discuss
 
-Be concise and helpful. Use markdown formatting when it improves clarity. If you reference a resource available in the system (like Wikipedia), you can mention it's accessible at http://localhost:8888.`;
+Be concise and helpful. Use markdown formatting when it improves clarity. If you reference a resource available in the system (like Wikipedia), you can mention it's accessible at http://localhost:${KIWIX_PORT}.`;
 }
 
 async function loadModels() {
@@ -638,12 +647,19 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && panelOpen) toggleChat();
 });
 
-// Init
-buildGrid();
-pollStatus();
-pollSystem();
-setInterval(pollStatus, 10000);
-setInterval(pollSystem, 15000);
+// Init — fetch actual ports first, then build UI
+(async () => {
+  try {
+    const pd = await fetch('/api/ports').then(r => r.json());
+    if (pd.kiwix)     KIWIX_PORT     = pd.kiwix;
+    if (pd.dashboard) DASHBOARD_PORT = pd.dashboard;
+  } catch(e) { /* fall back to defaults */ }
+  buildGrid();
+  pollStatus();
+  pollSystem();
+  setInterval(pollStatus, 10000);
+  setInterval(pollSystem, 15000);
+})();
 </script>
 </body>
 </html>
