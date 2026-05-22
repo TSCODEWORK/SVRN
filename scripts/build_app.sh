@@ -69,9 +69,36 @@ mkdir -p \
 echo "▶ Copying Info.plist…"
 cp "$ROOT/installer/Info.plist" "$CONTENTS/Info.plist"
 
-# ── Step 4: Launcher binary ────────────────────────────────────────────────────
+# ── Step 4: Launcher binary (with embedded first-run setup wizard) ────────────
 echo "▶ Installing launcher binary…"
-cp "$ROOT/installer/SVRN_launcher.sh" "$CONTENTS/MacOS/SVRN"
+
+# Embed first_run_setup.sh into the launcher by replacing the ##FIRST_RUN_SETUP##
+# placeholder. We use Python for safe substitution — bash string replacement
+# breaks on special characters (backslashes, ampersands, etc.) in the script body.
+python3 - << PYEOF
+import pathlib, sys
+
+launcher = pathlib.Path("$ROOT/installer/SVRN_launcher.sh").read_text()
+setup_raw = pathlib.Path("$ROOT/installer/first_run_setup.sh").read_text()
+
+# Strip header comment block — everything before the first non-comment,
+# non-blank line (i.e., skip until "set -euo pipefail")
+lines = setup_raw.splitlines()
+body_lines = []
+skip = True
+for line in lines:
+    if skip:
+        stripped = line.strip()
+        if stripped == "" or stripped.startswith("#"):
+            continue
+        skip = False
+    body_lines.append(line)
+setup_body = "\n".join(body_lines)
+
+result = launcher.replace("##FIRST_RUN_SETUP##", setup_body)
+pathlib.Path("$CONTENTS/MacOS/SVRN").write_text(result)
+print("  Embedded first_run_setup.sh into launcher")
+PYEOF
 chmod +x "$CONTENTS/MacOS/SVRN"
 
 # ── Step 5: Copy source files ──────────────────────────────────────────────────
