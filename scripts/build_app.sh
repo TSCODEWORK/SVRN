@@ -62,50 +62,28 @@ mkdir -p \
     "$RESOURCES/src/config" \
     "$RESOURCES/src/dashboard/static" \
     "$RESOURCES/src/kiwix" \
-    "$RESOURCES/src/menubar" \
     "$RESOURCES/launcher"
 
 # ── Step 3: Copy Info.plist ────────────────────────────────────────────────────
 echo "▶ Copying Info.plist…"
 cp "$ROOT/installer/Info.plist" "$CONTENTS/Info.plist"
 
-# ── Step 4: Launcher binary (with embedded first-run setup wizard) ────────────
-echo "▶ Installing launcher binary…"
-
-# Embed first_run_setup.sh into the launcher by replacing the ##FIRST_RUN_SETUP##
-# placeholder. We use Python for safe substitution — bash string replacement
-# breaks on special characters (backslashes, ampersands, etc.) in the script body.
-python3 - << PYEOF
-import pathlib, sys
-
-launcher = pathlib.Path("$ROOT/installer/SVRN_launcher.sh").read_text()
-setup_raw = pathlib.Path("$ROOT/installer/first_run_setup.sh").read_text()
-
-# Strip header comment block — everything before the first non-comment,
-# non-blank line (i.e., skip until "set -euo pipefail")
-lines = setup_raw.splitlines()
-body_lines = []
-skip = True
-for line in lines:
-    if skip:
-        stripped = line.strip()
-        if stripped == "" or stripped.startswith("#"):
-            continue
-        skip = False
-    body_lines.append(line)
-setup_body = "\n".join(body_lines)
-
-result = launcher.replace("##FIRST_RUN_SETUP##", setup_body)
-pathlib.Path("$CONTENTS/MacOS/SVRN").write_text(result)
-print("  Embedded first_run_setup.sh into launcher")
-PYEOF
+# ── Step 4: Build Swift launcher binary ───────────────────────────────────────
+echo "▶ Building Swift launcher…"
+(cd "$ROOT/swift" && swift build -c release 2>&1 | grep -v "^Build complete" || true)
+SWIFT_BINARY="$ROOT/swift/.build/release/SVRN"
+if [ ! -f "$SWIFT_BINARY" ]; then
+    echo "ERROR: Swift build failed — binary not found at $SWIFT_BINARY"
+    exit 1
+fi
+cp "$SWIFT_BINARY" "$CONTENTS/MacOS/SVRN"
 chmod +x "$CONTENTS/MacOS/SVRN"
+echo "  Swift binary: $(du -sh "$CONTENTS/MacOS/SVRN" | awk '{print $1}')"
 
 # ── Step 5: Copy source files ──────────────────────────────────────────────────
 echo "▶ Copying source files…"
 cp "$ROOT/src/config/__init__.py"    "$RESOURCES/src/config/__init__.py"
 cp "$ROOT/src/kiwix/server.py"       "$RESOURCES/src/kiwix/server.py"
-cp "$ROOT/src/menubar/app.py"        "$RESOURCES/src/menubar/app.py"
 cp "$ROOT/src/dashboard/server.py"   "$RESOURCES/src/dashboard/server.py"
 cp "$ROOT/src/dashboard"/*.html      "$RESOURCES/src/dashboard/"
 cp -r "$ROOT/src/dashboard/static/"  "$RESOURCES/src/dashboard/static/"
@@ -117,7 +95,6 @@ if [ -f "$ROOT/assets/AppIcon.icns" ]; then
     cp "$ROOT/assets/AppIcon.icns" "$RESOURCES/AppIcon.icns"
 else
     echo "  (No AppIcon.icns found — app will use default icon)"
-    # Create a minimal placeholder so macOS doesn't complain
     touch "$RESOURCES/AppIcon.icns"
 fi
 
@@ -136,26 +113,21 @@ else
     fi
 
     echo "▶ Extracting Python runtime…"
-    mkdir -p "$PYTHON_CACHE/extracted"
     rm -rf "$PYTHON_CACHE/extracted"
     mkdir -p "$PYTHON_CACHE/extracted"
     tar -xzf "$CACHED_TGZ" -C "$PYTHON_CACHE/extracted"
 
-    # The archive extracts to python/ at its root
     EXTRACTED_PYTHON="$(ls -d "$PYTHON_CACHE/extracted"/python* 2>/dev/null | head -1)"
     if [ -z "$EXTRACTED_PYTHON" ]; then
-        # Some releases have a nested 'python/' directory directly
         EXTRACTED_PYTHON="$PYTHON_CACHE/extracted/python"
     fi
 
     cp -r "$EXTRACTED_PYTHON" "$PYTHON_CACHE/python"
     cp -r "$PYTHON_CACHE/python" "$RESOURCES/python"
 
-    # Verify Python works
     BUNDLED_PY="$RESOURCES/python/bin/python3"
     if ! "$BUNDLED_PY" --version > /dev/null 2>&1; then
         echo "ERROR: Bundled Python failed to run"
-        "$BUNDLED_PY" --version
         exit 1
     fi
     echo "  Python OK: $("$BUNDLED_PY" --version)"
@@ -167,12 +139,10 @@ BUNDLED_PY="$RESOURCES/python/bin/python3"
 BUNDLED_PIP="$RESOURCES/python/bin/pip3"
 
 "$BUNDLED_PIP" install --quiet --upgrade pip
-"$BUNDLED_PIP" install --quiet libzim rumps
-echo "  Installed: libzim, rumps"
+"$BUNDLED_PIP" install --quiet libzim
+echo "  Installed: libzim"
 
-# Verify libzim imports
 "$BUNDLED_PY" -c "from libzim.reader import Archive; print('  libzim: OK')"
-"$BUNDLED_PY" -c "import rumps; print('  rumps: OK')"
 
 # ── Step 9: Smoke-test the bundle ─────────────────────────────────────────────
 echo "▶ Bundle smoke test…"
@@ -180,21 +150,13 @@ PYTHONPATH="$RESOURCES/src" "$BUNDLED_PY" -c "
 from config import HOME, SVRN_CONFIG, find_ollama, DEFAULT_PORTS
 print(f'  config: OK — HOME={HOME}')
 "
-echo "  Launcher import…"
-PYTHONPATH="$RESOURCES/src" "$BUNDLED_PY" -c "
-import sys
-sys.argv = ['SVRN', '--no-browser']
-# Just test imports, not execution
-from pathlib import Path
-spec_path = '$(echo $RESOURCES)/launcher/launch.py'
-import importlib.util
-spec = importlib.util.spec_from_file_location('launch', spec_path)
-mod = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mod)
-print(f'  launcher: OK — APP_ROOT={mod.APP_ROOT}')
-"
 
-# ── Step 10: Fix permissions ───────────────────────────────────────────────────
+# ── Step 10: Ad-hoc code sign ─────────────────────────────────────────────────
+echo "▶ Ad-hoc code signing…"
+codesign --sign - --force --deep "$APP_DIR" 2>&1 | grep -v "replacing existing signature" || true
+echo "  Signed (ad-hoc)"
+
+# ── Step 11: Fix permissions ───────────────────────────────────────────────────
 echo "▶ Fixing permissions…"
 find "$RESOURCES/python/bin" -type f -exec chmod +x {} \;
 chmod +x "$CONTENTS/MacOS/SVRN"
@@ -210,7 +172,7 @@ if [ "$APP_ONLY" = true ]; then
     exit 0
 fi
 
-# ── Step 11: Build .pkg ────────────────────────────────────────────────────────
+# ── Step 12: Build .pkg ────────────────────────────────────────────────────────
 echo "▶ Building installer package (.pkg)…"
 PKG_PATH="$BUILD_DIR/SVRN-${SVRN_VERSION}.pkg"
 
@@ -224,17 +186,14 @@ pkgbuild \
 echo "  pkg: $PKG_PATH"
 du -sh "$PKG_PATH" | awk '{print "  Size: " $1}'
 
-# ── Step 12: Build .dmg ────────────────────────────────────────────────────────
+# ── Step 13: Build .dmg ────────────────────────────────────────────────────────
 echo "▶ Building disk image (.dmg)…"
 DMG_PATH="$BUILD_DIR/SVRN-${SVRN_VERSION}.dmg"
 DMG_STAGING="$BUILD_DIR/dmg_staging"
 rm -rf "$DMG_STAGING" "$DMG_PATH"
 mkdir -p "$DMG_STAGING"
-
-# Copy .app to staging
 cp -r "$APP_DIR" "$DMG_STAGING/"
 
-# Try create-dmg for a nice drag-to-Applications disk image
 if command -v create-dmg &>/dev/null; then
     create-dmg \
         --volname "SVRN ${SVRN_VERSION}" \
@@ -248,7 +207,6 @@ if command -v create-dmg &>/dev/null; then
         "$DMG_PATH" \
         "$DMG_STAGING/"
 else
-    # Fallback: plain hdiutil
     hdiutil create \
         -volname "SVRN ${SVRN_VERSION}" \
         -srcfolder "$DMG_STAGING" \
@@ -257,9 +215,9 @@ else
 fi
 
 rm -rf "$DMG_STAGING"
-
 echo "  dmg: $DMG_PATH"
 du -sh "$DMG_PATH" | awk '{print "  Size: " $1}'
+
 echo ""
 echo "╔══════════════════════════════════════╗"
 echo "║  Build complete!"

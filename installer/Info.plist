@@ -48,7 +48,7 @@
         </dict>
     </dict>
     <key>LSUIElement</key>
-    <false/>
+    <true/>
     <key>NSRequiresAquaSystemAppearance</key>
     <false/>
 </dict>

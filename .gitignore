@@ -48,3 +48,7 @@ build/
 
 # Test artifacts
 .pytest_cache/
+
+# Swift Package Manager build output
+swift/.build/
+swift/.swiftpm/
