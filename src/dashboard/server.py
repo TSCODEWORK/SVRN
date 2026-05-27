@@ -302,6 +302,130 @@ def inv_export_csv() -> str:
 
 
 # ═══════════════════════════════════════════════════
+# Pins / Saved Places — SQLite
+# ═══════════════════════════════════════════════════
+
+PINS_DB = SVRN_CONFIG / "pins.db"
+
+_PINS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS pins (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL DEFAULT 'Pin',
+    notes       TEXT    NOT NULL DEFAULT '',
+    lat         REAL    NOT NULL,
+    lng         REAL    NOT NULL,
+    color       TEXT    NOT NULL DEFAULT '#e74c3c',
+    zoom        REAL,
+    bearing     REAL    NOT NULL DEFAULT 0,
+    pitch       REAL    NOT NULL DEFAULT 0,
+    created_at  TEXT    NOT NULL,
+    updated_at  TEXT    NOT NULL
+);
+"""
+
+
+def _pins_conn():
+    SVRN_CONFIG.mkdir(parents=True, exist_ok=True)
+    con = _sqlite3.connect(str(PINS_DB))
+    con.row_factory = _sqlite3.Row
+    con.executescript(_PINS_SCHEMA)
+    con.commit()
+    return con
+
+
+def pins_list() -> list:
+    con = _pins_conn()
+    rows = con.execute("SELECT * FROM pins ORDER BY created_at DESC").fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def pins_get(pin_id: int) -> dict:
+    con = _pins_conn()
+    row = con.execute("SELECT * FROM pins WHERE id=?", (pin_id,)).fetchone()
+    con.close()
+    return dict(row) if row else None
+
+
+def pins_create(data: dict) -> dict:
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    con = _pins_conn()
+    cur = con.execute(
+        """INSERT INTO pins (name,notes,lat,lng,color,zoom,bearing,pitch,created_at,updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        (
+            data.get("name", "Pin"),
+            data.get("notes", ""),
+            float(data["lat"]),
+            float(data["lng"]),
+            data.get("color", "#e74c3c"),
+            data.get("zoom"),
+            float(data.get("bearing", 0)),
+            float(data.get("pitch", 0)),
+            now, now,
+        )
+    )
+    con.commit()
+    row = con.execute("SELECT * FROM pins WHERE id=?", (cur.lastrowid,)).fetchone()
+    con.close()
+    return dict(row)
+
+
+def pins_update(pin_id: int, data: dict) -> dict:
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    con = _pins_conn()
+    con.execute(
+        """UPDATE pins SET name=?,notes=?,color=?,zoom=?,bearing=?,pitch=?,updated_at=?
+           WHERE id=?""",
+        (
+            data.get("name", "Pin"),
+            data.get("notes", ""),
+            data.get("color", "#e74c3c"),
+            data.get("zoom"),
+            float(data.get("bearing", 0)),
+            float(data.get("pitch", 0)),
+            now, pin_id,
+        )
+    )
+    con.commit()
+    row = con.execute("SELECT * FROM pins WHERE id=?", (pin_id,)).fetchone()
+    con.close()
+    return dict(row) if row else None
+
+
+def pins_delete(pin_id: int) -> bool:
+    con = _pins_conn()
+    cur = con.execute("DELETE FROM pins WHERE id=?", (pin_id,))
+    con.commit()
+    con.close()
+    return cur.rowcount > 0
+
+
+def pins_export_geojson() -> dict:
+    pins = pins_list()
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [p["lng"], p["lat"]]},
+                "properties": {
+                    "id":         p["id"],
+                    "name":       p["name"],
+                    "notes":      p["notes"],
+                    "color":      p["color"],
+                    "zoom":       p["zoom"],
+                    "bearing":    p["bearing"],
+                    "pitch":      p["pitch"],
+                    "created_at": p["created_at"],
+                },
+            }
+            for p in pins
+        ],
+    }
+
+
+# ═══════════════════════════════════════════════════
 # System Info
 # ═══════════════════════════════════════════════════
 
@@ -1943,6 +2067,28 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     break
             self._json(200, {"text": text, "title": title, "zim": zn, "found": bool(text)}); return
 
+        # ── Pins / Saved Places GET routes ──────────────────────────────────
+        if clean_path == "/api/pins":
+            self._json(200, pins_list()); return
+
+        if clean_path == "/api/pins/export.geojson":
+            data = json.dumps(pins_export_geojson(), indent=2).encode()
+            self.send_response(200)
+            self.send_header("Content-Type",        "application/geo+json")
+            self.send_header("Content-Disposition", "attachment; filename=svrn-places.geojson")
+            self.send_header("Content-Length",      str(len(data)))
+            self.end_headers()
+            self.wfile.write(data); return
+
+        if clean_path.startswith("/api/pins/"):
+            try:
+                pin_id = int(clean_path.split("/")[-1])
+                pin    = pins_get(pin_id)
+                self._json(200, pin) if pin else self._json(404, {"error": "not found"})
+            except ValueError:
+                self._json(400, {"error": "invalid id"})
+            return
+
         # ── Inventory GET routes ─────────────────────────────────────────────
         if clean_path == "/api/inventory/stats":
             self._json(200, inv_stats()); return
@@ -2084,8 +2230,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self._json(413, {"error": "Request body too large"}); return
         body   = json.loads(self.rfile.read(length) or b"{}") if length else {}
         try:
+            # PUT /api/pins/<id>
+            if clean_path.startswith("/api/pins/"):
+                try:
+                    pin_id = int(clean_path.split("/")[-1])
+                    pin    = pins_update(pin_id, body)
+                    self._json(200, pin) if pin else self._json(404, {"error": "not found"})
+                except ValueError:
+                    self._json(400, {"error": "invalid id"})
             # PUT /api/inventory/items/<id>
-            if clean_path.startswith("/api/inventory/items/"):
+            elif clean_path.startswith("/api/inventory/items/"):
                 try:
                     item_id = int(clean_path.split("/")[-1])
                     item    = inv_update(item_id, body)
@@ -2104,7 +2258,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def do_DELETE(self):
         clean_path = urllib.parse.urlparse(self.path).path
         try:
-            if clean_path.startswith("/api/inventory/items/"):
+            if clean_path.startswith("/api/pins/"):
+                try:
+                    pin_id = int(clean_path.split("/")[-1])
+                    self._json(200, {"deleted": pins_delete(pin_id)})
+                except ValueError:
+                    self._json(400, {"error": "invalid id"})
+            elif clean_path.startswith("/api/inventory/items/"):
                 try:
                     item_id = int(clean_path.split("/")[-1])
                     self._json(200, {"deleted": inv_delete(item_id)})
@@ -2332,6 +2492,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
             elif clean_path == "/api/maps/delete":
                 self._json(200, delete_map(body.get("preset_id","")))
+
+            # ── Pins POST routes ──────────────────────────────────────────
+            elif clean_path == "/api/pins":
+                self._json(201, pins_create(body))
 
             # ── Inventory POST routes ─────────────────────────────────────
             elif clean_path == "/api/inventory/items":
