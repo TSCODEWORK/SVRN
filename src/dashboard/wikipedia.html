@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wikipedia — SOVEREIGN</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:     #08090e;
+  --s1:     #0d1117;
+  --s2:     #121720;
+  --s3:     #181e2a;
+  --s4:     #1e2535;
+  --border: rgba(255,255,255,0.06);
+  --bord2:  rgba(255,255,255,0.11);
+  --text:   #dde1ec;
+  --muted:  #5b6478;
+  --muted2: #8892a8;
+  --accent: #3b82f6;
+  --acc2:   #2563eb;
+  --acc-gl: rgba(59,130,246,0.12);
+  --r:      12px;
+  --panel:  380px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',Helvetica,Arial,sans-serif;
+  font-size:14px;line-height:1.5;overflow:hidden}
+
+/* ── SHELL ──────────────────────────────────────── */
+.shell{display:flex;flex-direction:column;height:100vh}
+
+/* ── TOP BAR ────────────────────────────────────── */
+.topbar{
+  display:flex;align-items:center;gap:12px;
+  padding:0 22px;height:54px;flex-shrink:0;
+  background:var(--s1);border-bottom:1px solid var(--border);
+}
+.back-btn{
+  display:flex;align-items:center;gap:5px;color:var(--muted2);
+  text-decoration:none;font-size:12px;font-weight:500;
+  padding:5px 9px;border-radius:7px;transition:all .14s;
+}
+.back-btn:hover{background:var(--border);color:var(--text)}
+.topbar-icon{font-size:18px}
+.topbar-title{font-size:15px;font-weight:700;letter-spacing:-.2px}
+.topbar-sub{font-size:11px;color:var(--muted);font-weight:500;letter-spacing:.05em;text-transform:uppercase;margin-left:2px}
+
+/* Breadcrumb (reader mode) */
+.breadcrumb{
+  display:none;align-items:center;gap:5px;flex:1;
+  margin-left:8px;overflow:hidden;
+}
+.breadcrumb.show{display:flex}
+.bc-sep{color:var(--muted);font-size:12px}
+.bc-home{color:var(--muted2);font-size:12px;cursor:pointer;white-space:nowrap;transition:color .12s}
+.bc-home:hover{color:var(--accent)}
+.bc-current{
+  font-size:12px;font-weight:600;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.bc-zim{font-size:11px;color:var(--muted);white-space:nowrap}
+
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.search-wrap{position:relative}
+.search-ico{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.search-inp{
+  width:220px;padding:6px 9px 6px 28px;border-radius:8px;
+  border:1px solid var(--bord2);background:var(--bg);color:var(--text);
+  font-size:12px;outline:none;transition:all .15s;
+}
+.search-inp:focus{border-color:var(--accent);width:280px}
+.search-inp::placeholder{color:var(--muted)}
+
+.ai-toggle{
+  display:flex;align-items:center;gap:6px;
+  padding:7px 13px;border-radius:8px;border:1px solid rgba(59,130,246,0.25);
+  background:none;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;
+  transition:all .14s;white-space:nowrap;
+}
+.ai-toggle:hover{background:var(--acc-gl);border-color:rgba(59,130,246,.45)}
+.ai-toggle.active{background:var(--acc-gl);border-color:rgba(59,130,246,.45)}
+
+/* ── BODY ────────────────────────────────────────── */
+.body{display:flex;flex:1;overflow:hidden}
+
+/* ── LIBRARY VIEW ───────────────────────────────── */
+.library-view{
+  flex:1;overflow-y:auto;padding:32px 36px;
+  display:flex;flex-direction:column;gap:36px;
+}
+.library-view::-webkit-scrollbar{width:5px}
+.library-view::-webkit-scrollbar-thumb{background:var(--bord2);border-radius:5px}
+
+/* Hero */
+.hero-label{
+  font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--accent);
+  text-transform:uppercase;margin-bottom:14px;
+}
+.hero-card{
+  background:linear-gradient(135deg,#0f1929 0%,#0d1520 60%,#091422 100%);
+  border:1px solid rgba(59,130,246,0.2);border-radius:18px;
+  padding:32px 36px;cursor:pointer;position:relative;overflow:hidden;
+  transition:border-color .18s,box-shadow .18s;
+  display:flex;align-items:center;gap:40px;
+}
+.hero-card:hover{
+  border-color:rgba(59,130,246,.45);
+  box-shadow:0 8px 48px rgba(0,0,0,.5),0 0 48px rgba(59,130,246,.06);
+}
+.hero-card::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 20% 50%,rgba(59,130,246,.07) 0%,transparent 65%);
+  pointer-events:none;
+}
+.hero-glyph{
+  font-size:88px;line-height:1;flex-shrink:0;
+  filter:drop-shadow(0 0 24px rgba(59,130,246,.3));
+}
+.hero-info{flex:1}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--accent);
+  text-transform:uppercase;margin-bottom:10px;
+  padding:3px 9px;border-radius:5px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.18);
+}
+.hero-title{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
+.hero-desc{font-size:13px;color:var(--muted2);line-height:1.65;max-width:520px;margin-bottom:18px}
+.hero-stats{display:flex;gap:24px;margin-bottom:22px}
+.hero-stat .sv{font-size:20px;font-weight:800;color:var(--accent)}
+.hero-stat .sl{font-size:11px;color:var(--muted2);font-weight:500;margin-top:1px}
+.hero-open{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:10px 22px;border-radius:9px;border:none;cursor:pointer;font-size:13px;font-weight:700;
+  background:linear-gradient(135deg,var(--accent),var(--acc2));color:#fff;
+  box-shadow:0 2px 16px rgba(59,130,246,.3);transition:opacity .14s;
+}
+.hero-open:hover{opacity:.88}
+.hero-open svg{transition:transform .14s}
+.hero-open:hover svg{transform:translateX(3px)}
+
+/* Subject browse */
+.section-head{display:flex;align-items:baseline;gap:10px;margin-bottom:16px}
+.section-title{font-size:16px;font-weight:700}
+.section-sub{font-size:12px;color:var(--muted2)}
+
+.subjects-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
+  gap:10px;
+}
+.subj-card{
+  background:var(--s2);border:1px solid var(--border);border-radius:var(--r);
+  padding:16px;cursor:pointer;transition:all .15s;
+}
+.subj-card:hover{background:var(--s3);border-color:var(--bord2);transform:translateY(-2px)}
+.subj-icon{font-size:26px;margin-bottom:8px}
+.subj-name{font-size:13px;font-weight:600;margin-bottom:3px}
+.subj-desc{font-size:11px;color:var(--muted2);line-height:1.4}
+
+/* Collection row */
+.collections-row{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  gap:12px;
+}
+.coll-card{
+  background:var(--s2);border:1px solid var(--border);border-radius:var(--r);
+  padding:20px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden;
+}
+.coll-card:hover{background:var(--s3);border-color:var(--bord2);transform:translateY(-2px)}
+.coll-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--coll-clr,var(--accent)),transparent);
+  opacity:.5;
+}
+.coll-glyph{font-size:28px;margin-bottom:10px}
+.coll-name{font-size:13px;font-weight:700;margin-bottom:4px}
+.coll-desc{font-size:11px;color:var(--muted2);line-height:1.5;margin-bottom:12px}
+.coll-open{
+  font-size:11px;font-weight:700;color:var(--coll-clr,var(--accent));
+  display:flex;align-items:center;gap:4px;
+}
+
+/* ── READER VIEW ─────────────────────────────────── */
+.reader-view{
+  flex:1;display:none;flex-direction:column;overflow:hidden;
+}
+.reader-view.show{display:flex}
+.reader-toolbar{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 14px;border-bottom:1px solid var(--border);
+  background:var(--s1);flex-shrink:0;
+}
+.nav-btn{
+  background:var(--s2);border:1px solid var(--border);border-radius:6px;
+  color:var(--muted2);cursor:pointer;padding:5px 8px;font-size:12px;
+  transition:all .13s;
+}
+.nav-btn:hover{background:var(--s3);color:var(--text)}
+.nav-btn:disabled{opacity:.3;cursor:not-allowed}
+.reader-frame-wrap{flex:1;position:relative;overflow:hidden}
+iframe#wiki-frame{
+  width:100%;height:100%;border:none;
+  background:#fff;
+}
+
+/* ── AI PANEL ───────────────────────────────────── */
+.ai-panel{
+  width:0;border-left:1px solid var(--border);
+  background:var(--s1);display:flex;flex-direction:column;
+  transition:width .24s cubic-bezier(.4,0,.2,1);overflow:hidden;flex-shrink:0;
+}
+.ai-panel.open{width:var(--panel)}
+.ai-inner{width:var(--panel);display:flex;flex-direction:column;height:100%;overflow:hidden}
+
+.ai-head{
+  padding:14px 16px 12px;border-bottom:1px solid var(--border);flex-shrink:0;
+  display:flex;align-items:center;gap:10px;
+}
+.ai-head-icon{
+  width:32px;height:32px;border-radius:8px;
+  background:linear-gradient(135deg,var(--accent),var(--acc2));
+  display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;
+}
+.ai-head-text .ai-name{font-size:14px;font-weight:700}
+.ai-head-text .ai-sub{font-size:11px;color:var(--muted2)}
+
+.ai-context{
+  padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;
+  display:none;
+}
+.ai-context.show{display:block}
+.ctx-label{font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:5px}
+.ctx-article{
+  font-size:12px;font-weight:600;color:var(--accent);
+  background:var(--acc-gl);border:1px solid rgba(59,130,246,.15);
+  border-radius:7px;padding:6px 10px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
+.qp-wrap{padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.qp-label{font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+.qp-grid{display:flex;flex-wrap:wrap;gap:5px}
+.qp-btn{
+  padding:4px 9px;border-radius:5px;border:1px solid var(--bord2);
+  background:none;color:var(--muted2);font-size:11px;cursor:pointer;transition:all .13s;
+}
+.qp-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--acc-gl)}
+
+.msgs{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.msgs::-webkit-scrollbar{width:3px}
+.msgs::-webkit-scrollbar-thumb{background:var(--bord2);border-radius:3px}
+.msg{padding:9px 12px;border-radius:10px;font-size:12.5px;line-height:1.6}
+.msg.user{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.16);align-self:flex-end;max-width:92%}
+.msg.ai{background:var(--s3);border:1px solid var(--border)}
+.msg.ai strong{font-weight:700}
+.msg.ai ul{margin-left:14px;margin-bottom:6px}
+.msg.ai li{margin-bottom:2px}
+.msg.ai code{background:rgba(0,0,0,.3);padding:1px 4px;border-radius:3px;font-size:11px}
+.msg.ai p{margin-bottom:5px}
+.msg.ai p:last-child{margin-bottom:0}
+
+.chat-bar{padding:10px 12px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:6px}
+.chat-inp{
+  flex:1;padding:7px 11px;border-radius:8px;border:1px solid var(--bord2);
+  background:var(--bg);color:var(--text);font-size:12.5px;outline:none;
+  resize:none;font-family:inherit;min-height:36px;max-height:120px;transition:border-color .14s;
+}
+.chat-inp:focus{border-color:var(--accent)}
+.chat-inp::placeholder{color:var(--muted)}
+.chat-send{
+  padding:7px 12px;border-radius:8px;border:none;
+  background:var(--accent);color:#fff;font-size:14px;font-weight:800;
+  cursor:pointer;align-self:flex-end;transition:opacity .13s;
+}
+.chat-send:hover{opacity:.85}
+.chat-send:disabled{opacity:.3;cursor:not-allowed}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ── TOP BAR ───────────────────────────────────── -->
+<div class="topbar">
+  <a href="/" class="back-btn" id="back-btn">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+    Home
+  </a>
+
+  <span class="topbar-icon">🌐</span>
+  <span class="topbar-title">Wikipedia</span>
+  <span class="topbar-sub">SOVEREIGN</span>
+
+  <!-- Breadcrumb (shown in reader mode) -->
+  <div class="breadcrumb" id="breadcrumb">
+    <span class="bc-sep">›</span>
+    <span class="bc-zim" id="bc-zim"></span>
+    <span class="bc-sep">›</span>
+    <span class="bc-current" id="bc-current">—</span>
+  </div>
+
+  <div class="topbar-right">
+    <!-- Search bar -->
+    <div class="search-wrap" id="search-wrap">
+      <svg class="search-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="search-inp" id="search-inp" placeholder="Search Wikipedia… ⌘K" onkeydown="onSearch(event)">
+    </div>
+
+    <!-- Library / Reader toggle shown in reader mode -->
+    <button class="back-btn" id="library-btn" onclick="showLibrary()" style="display:none">
+      ← Library
+    </button>
+
+    <button class="ai-toggle" id="ai-toggle" onclick="toggleAI()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.93V15a1 1 0 0 0-2 0v1.93A8 8 0 0 1 4.07 11H6a1 1 0 0 0 0-2H4.07A8 8 0 0 1 11 4.07V6a1 1 0 0 0 2 0V4.07A8 8 0 0 1 19.93 11H18a1 1 0 0 0 0 2h1.93A8 8 0 0 1 13 16.93z"/></svg>
+      Wiki AI
+    </button>
+  </div>
+</div>
+
+<!-- ── BODY ───────────────────────────────────────── -->
+<div class="body">
+
+  <!-- ════ LIBRARY VIEW ════ -->
+  <div class="library-view" id="library-view">
+
+    <!-- Primary hero: Main Wikipedia -->
+    <div>
+      <div class="hero-label">📖 Primary Collection</div>
+      <div class="hero-card" onclick="openZim('wikipedia_en_all_nopic_2026-03','Wikipedia','English')">
+        <div class="hero-glyph">🌐</div>
+        <div class="hero-info">
+          <div class="hero-badge">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+            Complete Offline Encyclopedia
+          </div>
+          <div class="hero-title">Wikipedia</div>
+          <div class="hero-desc">The entire English Wikipedia — over 6 million articles covering science, history, technology, culture, geography, and everything in between. Fully offline, fully searchable.</div>
+          <div class="hero-stats">
+            <div class="hero-stat"><div class="sv">6M+</div><div class="sl">Articles</div></div>
+            <div class="hero-stat"><div class="sv">2026</div><div class="sl">Edition</div></div>
+            <div class="hero-stat"><div class="sv">100%</div><div class="sl">Offline</div></div>
+          </div>
+          <button class="hero-open">
+            Open Encyclopedia
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subject shortcuts -->
+    <div>
+      <div class="section-head">
+        <div class="section-title">Browse by Subject</div>
+        <div class="section-sub">Jump directly into a topic area</div>
+      </div>
+      <div class="subjects-grid" id="subjects-grid"></div>
+    </div>
+
+    <!-- Other collections -->
+    <div>
+      <div class="section-head">
+        <div class="section-title">More Collections</div>
+        <div class="section-sub">Related offline wikis</div>
+      </div>
+      <div class="collections-row" id="collections-row"></div>
+    </div>
+
+  </div><!-- /.library-view -->
+
+  <!-- ════ READER VIEW ════ -->
+  <div class="reader-view" id="reader-view">
+    <div class="reader-toolbar">
+      <button class="nav-btn" id="btn-back" onclick="frameNav(-1)" disabled title="Back">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <button class="nav-btn" id="btn-fwd" onclick="frameNav(1)" disabled title="Forward">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+      <button class="nav-btn" onclick="reloadFrame()" title="Reload">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.56"/></svg>
+      </button>
+      <span style="flex:1"></span>
+      <span id="reader-zim-label" style="font-size:11px;color:var(--muted);margin-right:4px"></span>
+      <button class="nav-btn" onclick="showLibrary()" style="font-size:11px;display:flex;align-items:center;gap:4px">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to Library
+      </button>
+    </div>
+    <div class="reader-frame-wrap">
+      <iframe id="wiki-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" allowfullscreen></iframe>
+    </div>
+  </div>
+
+  <!-- ════ AI PANEL ════ -->
+  <div class="ai-panel" id="ai-panel">
+    <div class="ai-inner">
+
+      <div class="ai-head">
+        <div class="ai-head-icon">🌐</div>
+        <div class="ai-head-text">
+          <div class="ai-name">Wiki AI</div>
+          <div class="ai-sub">Your encyclopedia companion</div>
+        </div>
+      </div>
+
+      <!-- Current article context -->
+      <div class="ai-context" id="ai-context">
+        <div class="ctx-label">Reading now</div>
+        <div class="ctx-article" id="ctx-article">—</div>
+      </div>
+
+      <div class="qp-wrap">
+        <div class="qp-label">Quick prompts</div>
+        <div class="qp-grid">
+          <button class="qp-btn" onclick="quickAsk('Give me a brief, clear summary of what I\'m currently reading.')">Summarize this article</button>
+          <button class="qp-btn" onclick="quickAsk('What are the key facts I should take away from this topic?')">Key takeaways</button>
+          <button class="qp-btn" onclick="quickAsk('What related topics should I explore next from this article?')">What to read next</button>
+          <button class="qp-btn" onclick="quickAsk('Explain the most technical or complex concepts in simple terms.')">Simplify the hard parts</button>
+          <button class="qp-btn" onclick="quickAsk('What is the historical significance of this topic?')">Historical context</button>
+          <button class="qp-btn" onclick="quickAsk('How does this connect to science, technology, or real-world applications?')">Real-world connections</button>
+        </div>
+      </div>
+
+      <div class="msgs" id="msgs">
+        <div class="msg ai">
+          <p>I'm your <strong>Wiki AI</strong> — I read along as you browse the encyclopedia.</p>
+          <p>Open any article and I'll help you understand it, find connections, or explore deeper. Ask me anything.</p>
+        </div>
+      </div>
+
+      <div class="chat-bar">
+        <textarea class="chat-inp" id="chat-inp" rows="1" placeholder="Ask about Wikipedia…" onkeydown="onChatKey(event)"></textarea>
+        <button class="chat-send" id="chat-send" onclick="sendChat()">↑</button>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /.body -->
+</div><!-- /.shell -->
+
+<script>
+// ── Collections ────────────────────────────────────
+const SUBJECTS = [
+  {icon:'⚛️', name:'Science',         desc:'Physics, chemistry, astronomy',  path:'Physics'},
+  {icon:'🧬', name:'Biology',         desc:'Life, evolution, ecology',        path:'Biology'},
+  {icon:'🧮', name:'Mathematics',     desc:'Algebra, calculus, geometry',     path:'Mathematics'},
+  {icon:'💻', name:'Technology',      desc:'Computing, engineering, AI',      path:'Technology'},
+  {icon:'🏛️', name:'History',         desc:'Ancient to modern civilizations', path:'History'},
+  {icon:'🌍', name:'Geography',       desc:'Countries, maps, cultures',       path:'Geography'},
+  {icon:'⚕️', name:'Medicine',        desc:'Health, anatomy, disease',        path:'Medicine'},
+  {icon:'🎨', name:'Arts & Culture',  desc:'Art, music, literature',          path:'Art'},
+  {icon:'⚖️', name:'Philosophy',      desc:'Logic, ethics, metaphysics',      path:'Philosophy'},
+  {icon:'🌱', name:'Environment',     desc:'Climate, ecology, sustainability',path:'Ecology'},
+  {icon:'🚀', name:'Space',           desc:'Astronomy, cosmos, space travel', path:'Astronomy'},
+  {icon:'⚙️', name:'Engineering',     desc:'Mechanical, civil, electrical',   path:'Engineering'},
+];
+
+const COLLECTIONS = [
+  {
+    zim:'wikibooks_en_all_maxi_2026-01', label:'Wikibooks',
+    glyph:'📚', desc:'Free textbooks on virtually every subject — from cooking to calculus.',
+    clr:'#a78bfa', tag:'Textbooks'
+  },
+  {
+    zim:'wikiversity_en_all_maxi_2026-02', label:'Wikiversity',
+    glyph:'🎓', desc:'Open learning resources, courses, and research materials.',
+    clr:'#34d399', tag:'Courses'
+  },
+  {
+    zim:'wikivoyage_en_all_nopic_2026-03', label:'Wikivoyage',
+    glyph:'🗺️', desc:'The free travel guide — destinations, tips, and itineraries worldwide.',
+    clr:'#f59e0b', tag:'Travel'
+  },
+  {
+    zim:'wikipedia_en_100_mini_2026-01', label:'Wikipedia Top 100',
+    glyph:'⭐', desc:'The hundred most-read Wikipedia articles — a curated starter collection.',
+    clr:'#60a5fa', tag:'Featured'
+  },
+];
+
+// ── State ──────────────────────────────────────────
+let currentZim         = '';
+let currentZimLabel    = '';
+let currentTitle       = '';
+let currentArticlePath = '';   // tracks the last known ZIM article path
+let chatHistory  = [];
+let streaming    = false;
+let aiOpen       = false;
+
+// ── Boot ───────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  buildSubjects();
+  buildCollections();
+  window.addEventListener('message', onFrameMsg);
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); document.getElementById('search-inp').focus() }
+    if (e.key==='Escape' && aiOpen) toggleAI();
+  });
+});
+
+function buildSubjects() {
+  document.getElementById('subjects-grid').innerHTML = SUBJECTS.map(s => `
+    <div class="subj-card" onclick="openSubject('${s.path}')">
+      <div class="subj-icon">${s.icon}</div>
+      <div class="subj-name">${s.name}</div>
+      <div class="subj-desc">${s.desc}</div>
+    </div>`).join('');
+}
+
+function buildCollections() {
+  document.getElementById('collections-row').innerHTML = COLLECTIONS.map(c => `
+    <div class="coll-card" style="--coll-clr:${c.clr}" onclick="openZim('${c.zim}','${c.label}','${c.tag}')">
+      <div class="coll-glyph">${c.glyph}</div>
+      <div class="coll-name">${c.label} <span style="font-size:10px;font-weight:600;padding:1px 5px;border-radius:4px;background:rgba(255,255,255,.07);color:var(--muted2)">${c.tag}</span></div>
+      <div class="coll-desc">${c.desc}</div>
+      <div class="coll-open">Open ${c.label} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+    </div>`).join('');
+}
+
+// ── Navigation ─────────────────────────────────────
+function openZim(zim, label, tag) {
+  currentZim      = zim;
+  currentZimLabel = label;
+  const frame     = document.getElementById('wiki-frame');
+  frame.src       = `/zim-proxy/${zim}/`;
+  currentArticlePath = '';  // reset on collection open (browsing home page)
+  showReader(label);
+}
+
+function openSubject(path) {
+  currentZim      = 'wikipedia_en_all_nopic_2026-03';
+  currentZimLabel = 'Wikipedia';
+  const frame     = document.getElementById('wiki-frame');
+  frame.src       = `/zim-proxy/wikipedia_en_all_nopic_2026-03/A/${encodeURIComponent(path)}`;
+  currentArticlePath = `A/${path}`;  // set path for exact article fetch
+  showReader('Wikipedia');
+}
+
+function showReader(label) {
+  document.getElementById('library-view').style.display  = 'none';
+  document.getElementById('reader-view').classList.add('show');
+  document.getElementById('reader-zim-label').textContent = label;
+  document.getElementById('breadcrumb').classList.add('show');
+  document.getElementById('bc-zim').textContent = label;
+  document.getElementById('library-btn').style.display = '';
+  document.getElementById('back-btn').style.display    = 'none';
+  document.getElementById('search-wrap').style.display  = 'none';
+}
+
+function showLibrary() {
+  document.getElementById('library-view').style.display  = '';
+  document.getElementById('reader-view').classList.remove('show');
+  document.getElementById('breadcrumb').classList.remove('show');
+  document.getElementById('library-btn').style.display = 'none';
+  document.getElementById('back-btn').style.display    = '';
+  document.getElementById('search-wrap').style.display  = '';
+  currentTitle = '';
+  document.getElementById('ai-context').classList.remove('show');
+  document.getElementById('bc-current').textContent = '—';
+}
+
+function frameNav(dir) {
+  const frame = document.getElementById('wiki-frame');
+  if (dir === -1) frame.contentWindow?.history.back();
+  else            frame.contentWindow?.history.forward();
+}
+
+function reloadFrame() {
+  const f = document.getElementById('wiki-frame');
+  f.src = f.src;
+}
+
+// ── postMessage from ZIM ────────────────────────────
+function onFrameMsg(e) {
+  if (!e.data || typeof e.data !== 'object') return;
+  const {type, title, path, zim} = e.data;
+  if (type === 'zim-nav') {
+    const t = title || path || '';
+    currentTitle = t;
+    currentArticlePath = path || '';
+    document.getElementById('bc-current').textContent = t;
+    if (t) {
+      document.getElementById('ai-context').classList.add('show');
+      document.getElementById('ctx-article').textContent = t;
+    }
+    const bk = document.getElementById('btn-back');
+    const fw = document.getElementById('btn-fwd');
+    if (bk) bk.disabled = false;
+  }
+}
+
+// Also detect iframe navigation via load event
+document.getElementById('wiki-frame').addEventListener('load', function() {
+  try {
+    const path = this.contentWindow?.location?.pathname || '';
+    const segments = path.split('/').filter(Boolean);
+    // e.g. /zim-proxy/wikipedia_en_all_nopic_2026-03/A/Physics
+    if (segments.length >= 3 && (segments[0] === 'zim' || segments[0] === 'zim-proxy')) {
+      currentArticlePath = segments.slice(2).join('/');  // e.g. "A/Physics"
+      const article = decodeURIComponent(segments[segments.length - 1]).replace(/_/g,' ');
+      if (article && article !== 'A') {
+        currentTitle = article;
+        document.getElementById('bc-current').textContent = article;
+        document.getElementById('ai-context').classList.add('show');
+        document.getElementById('ctx-article').textContent = article;
+      }
+    }
+  } catch(_) { /* cross-origin — path unknown, rely on title */ }
+  document.getElementById('btn-back').disabled = false;
+});
+
+// ── Search ─────────────────────────────────────────
+function onSearch(e) {
+  if (e.key !== 'Enter') return;
+  const q = e.target.value.trim();
+  if (!q) return;
+  // Open Wikipedia and search
+  const zim = 'wikipedia_en_all_nopic_2026-03';
+  currentZim = zim;
+  currentZimLabel = 'Wikipedia';
+  const frame = document.getElementById('wiki-frame');
+  // Wikipedia ZIM search URL pattern
+  frame.src = `http://localhost:8888/search?content=${zim}&pattern=${encodeURIComponent(q)}`;
+  currentArticlePath = '';  // reset — search page, not an article
+  showReader('Wikipedia');
+  e.target.value = '';
+}
+
+// ── AI Panel ───────────────────────────────────────
+function toggleAI() {
+  aiOpen = !aiOpen;
+  document.getElementById('ai-panel').classList.toggle('open', aiOpen);
+  document.getElementById('ai-toggle').classList.toggle('active', aiOpen);
+}
+
+function quickAsk(q) {
+  if (!aiOpen) toggleAI();
+  appendMsg('user', q);
+  chatHistory.push({role:'user', content: buildContextualPrompt(q)});
+  stream();
+}
+
+function onChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat() }
+}
+
+function sendChat() {
+  const inp = document.getElementById('chat-inp');
+  const txt = inp.value.trim();
+  if (!txt || streaming) return;
+  inp.value = '';
+  appendMsg('user', txt);
+  chatHistory.push({role:'user', content: buildContextualPrompt(txt)});
+  stream();
+}
+
+function buildContextualPrompt(userMsg) {
+  if (!currentTitle) return userMsg;
+  return `[Context: The user is reading the Wikipedia article "${currentTitle}" in the "${currentZimLabel}" collection.]\n\n${userMsg}`;
+}
+
+function buildSystemPrompt() {
+  const collections = [
+    'Wikipedia (6M+ English articles, 2026 edition)',
+    'Wikibooks (open textbooks)',
+    'Wikiversity (learning resources & courses)',
+    'Wikivoyage (travel guides)',
+    'Wikipedia Top 100 (most-read articles)',
+  ].join(', ');
+
+  let ctx = '';
+  if (currentTitle) {
+    ctx = `\n\nThe user is currently reading: "${currentTitle}" in the ${currentZimLabel} collection. When they ask questions without specifying a topic, assume they are asking about this article.`;
+  }
+
+  return `You are Wiki AI — an expert encyclopedia companion integrated into SOVEREIGN, a fully offline knowledge system.
+
+Available offline collections: ${collections}${ctx}
+
+Your role:
+- Help the user understand articles they are reading
+- Summarize, explain, and contextualise Wikipedia content
+- Suggest related topics and learning paths
+- Answer questions using your training knowledge (since you have no internet access, draw on what you know)
+- Connect ideas across disciplines
+
+Be clear, accurate, and intellectually engaging. Use markdown formatting. When summarizing an article, structure your response with key concepts first, then detail.`;
+}
+
+async function stream() {
+  if (streaming) return;
+  streaming = true;
+  document.getElementById('chat-send').disabled = true;
+  const msgEl = appendMsg('ai', '');
+  let full = '';
+  try {
+    // --- ZIM RAG: fetch library context before calling AI ---
+    let ragContext = [];
+    const lastUserMsg = chatHistory.length > 0 ? chatHistory[chatHistory.length - 1].content : '';
+    const rawQuery = lastUserMsg.replace(/^\[Context:[^\]]+\]\s*\n\n/, '');
+    if (rawQuery) {
+      try {
+        const ragResp = await fetch('/api/chat/search-zim', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({query: rawQuery, deep: false, zim: currentZim || ''})
+        });
+        if (ragResp.ok) {
+          const ragData = await ragResp.json();
+          ragContext = ragData.results || [];
+        }
+      } catch(_) {}
+    }
+    // --- END ZIM RAG ---
+
+    // --- ARTICLE TEXT: fetch content of currently-viewed article ---
+    let articleText = '';
+    const zimNameForFetch = currentZim || '';
+    const articleTitleForFetch = currentTitle || '';
+
+    if (zimNameForFetch && articleTitleForFetch) {
+      try {
+        let articleUrl;
+        if (currentArticlePath) {
+          articleUrl = `/api/reader/article?zim=${encodeURIComponent(zimNameForFetch)}&path=${encodeURIComponent(currentArticlePath)}`;
+        } else {
+          articleUrl = `/api/zim-text?zim=${encodeURIComponent(zimNameForFetch)}&title=${encodeURIComponent(articleTitleForFetch)}`;
+        }
+        const artResp = await fetch(articleUrl);
+        if (artResp.ok) {
+          const artData = await artResp.json();
+          articleText = artData.text || '';
+        }
+      } catch(_) {}
+    }
+    // --- END ARTICLE TEXT ---
+
+    const resp = await fetch('/api/chat', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        messages: chatHistory,
+        system_prompt: buildSystemPrompt(),
+        rag_context: ragContext,
+        article_text: articleText,
+        article_zim:  zimNameForFetch,
+        article_title: articleTitleForFetch,
+      })
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error || `Server error ${resp.status}`);
+    }
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      for (const line of dec.decode(value).split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        const d = line.slice(6);
+        if (d === '[DONE]') break;
+        try { const j = JSON.parse(d); if (j.text) { full += j.text; msgEl.innerHTML = md(full) } } catch(_) {}
+      }
+      document.getElementById('msgs').scrollTop = 9999;
+    }
+    if (full) chatHistory.push({role:'assistant', content: full});
+  } catch(e) {
+    msgEl.innerHTML = `<em style="color:#f87171">⚠ ${e.message || 'AI unavailable — is Ollama running?'}</em>`;
+  } finally {
+    streaming = false;
+    document.getElementById('chat-send').disabled = false;
+  }
+}
+
+function appendMsg(role, content) {
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = role === 'user' ? esc(content) : md(content);
+  document.getElementById('msgs').appendChild(div);
+  document.getElementById('msgs').scrollTop = 9999;
+  return div;
+}
+
+function md(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*([^*\n]+)\*/g,'<em>$1</em>')
+    .replace(/`([^`\n]+)`/g,'<code>$1</code>')
+    .replace(/^#{1,3} (.+)$/gm,'<strong style="font-size:13px">$1</strong>')
+    .replace(/^[-*] (.+)$/gm,'<li>$1</li>')
+    .replace(/(<li>.*?<\/li>\n?)+/gs, m=>`<ul>${m}</ul>`)
+    .replace(/\n{2,}/g,'</p><p>').replace(/\n/g,' ')
+    .replace(/^(.)/,'<p>$1').replace(/([^>p])$/,'$1</p>');
+}
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+</script>
+</body>
+</html>

@@ -121,6 +121,187 @@ _dl_state: dict = {"status": "idle"}
 
 
 # ═══════════════════════════════════════════════════
+# Inventory — SQLite-backed tools & parts tracker
+# ═══════════════════════════════════════════════════
+import sqlite3 as _sqlite3
+
+INVENTORY_DB = SVRN_CONFIG / "inventory.db"
+
+_INV_SCHEMA = """
+CREATE TABLE IF NOT EXISTS items (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    type            TEXT    NOT NULL DEFAULT 'part',
+    name            TEXT    NOT NULL,
+    category        TEXT    NOT NULL DEFAULT '',
+    quantity        REAL,
+    unit            TEXT    NOT NULL DEFAULT 'pcs',
+    reorder_qty     REAL,
+    location        TEXT    NOT NULL DEFAULT '',
+    condition_state TEXT    NOT NULL DEFAULT 'good',
+    last_service    TEXT    NOT NULL DEFAULT '',
+    notes           TEXT    NOT NULL DEFAULT '',
+    tags            TEXT    NOT NULL DEFAULT '',
+    created_at      TEXT    NOT NULL,
+    updated_at      TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_items_type     ON items(type);
+CREATE INDEX IF NOT EXISTS idx_items_category ON items(category);
+"""
+
+
+def _inv_conn():
+    SVRN_CONFIG.mkdir(parents=True, exist_ok=True)
+    con = _sqlite3.connect(str(INVENTORY_DB))
+    con.row_factory = _sqlite3.Row
+    con.executescript(_INV_SCHEMA)
+    con.commit()
+    return con
+
+
+def _row_to_dict(row) -> dict:
+    return dict(row)
+
+
+def inv_list(type_filter=None, category=None, q=None) -> list:
+    con = _inv_conn()
+    sql = "SELECT * FROM items WHERE 1=1"
+    params = []
+    if type_filter:
+        sql += " AND type=?"; params.append(type_filter)
+    if category:
+        sql += " AND category=?"; params.append(category)
+    if q:
+        sql += " AND (name LIKE ? OR notes LIKE ? OR tags LIKE ? OR location LIKE ?)"
+        like = f"%{q}%"
+        params += [like, like, like, like]
+    sql += " ORDER BY name ASC"
+    rows = con.execute(sql, params).fetchall()
+    con.close()
+    return [_row_to_dict(r) for r in rows]
+
+
+def inv_get(item_id: int) -> dict:
+    con = _inv_conn()
+    row = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+    con.close()
+    return _row_to_dict(row) if row else None
+
+
+def inv_create(data: dict) -> dict:
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    con = _inv_conn()
+    cur = con.execute(
+        """INSERT INTO items
+           (type,name,category,quantity,unit,reorder_qty,location,
+            condition_state,last_service,notes,tags,created_at,updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            data.get("type", "part"),
+            data.get("name", ""),
+            data.get("category", ""),
+            data.get("quantity"),
+            data.get("unit", "pcs"),
+            data.get("reorder_qty"),
+            data.get("location", ""),
+            data.get("condition_state", "good"),
+            data.get("last_service", ""),
+            data.get("notes", ""),
+            data.get("tags", ""),
+            now, now,
+        )
+    )
+    con.commit()
+    row = con.execute("SELECT * FROM items WHERE id=?", (cur.lastrowid,)).fetchone()
+    con.close()
+    return _row_to_dict(row)
+
+
+def inv_update(item_id: int, data: dict) -> dict:
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    con = _inv_conn()
+    con.execute(
+        """UPDATE items SET
+           type=?,name=?,category=?,quantity=?,unit=?,reorder_qty=?,location=?,
+           condition_state=?,last_service=?,notes=?,tags=?,updated_at=?
+           WHERE id=?""",
+        (
+            data.get("type", "part"),
+            data.get("name", ""),
+            data.get("category", ""),
+            data.get("quantity"),
+            data.get("unit", "pcs"),
+            data.get("reorder_qty"),
+            data.get("location", ""),
+            data.get("condition_state", "good"),
+            data.get("last_service", ""),
+            data.get("notes", ""),
+            data.get("tags", ""),
+            now, item_id,
+        )
+    )
+    con.commit()
+    row = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+    con.close()
+    return _row_to_dict(row) if row else None
+
+
+def inv_delete(item_id: int) -> bool:
+    con = _inv_conn()
+    cur = con.execute("DELETE FROM items WHERE id=?", (item_id,))
+    con.commit()
+    con.close()
+    return cur.rowcount > 0
+
+
+def inv_adjust_qty(item_id: int, delta: float) -> dict:
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    con = _inv_conn()
+    con.execute(
+        "UPDATE items SET quantity=MAX(0,COALESCE(quantity,0)+?), updated_at=? WHERE id=?",
+        (delta, now, item_id)
+    )
+    con.commit()
+    row = con.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+    con.close()
+    return _row_to_dict(row) if row else None
+
+
+def inv_stats() -> dict:
+    con = _inv_conn()
+    total     = con.execute("SELECT COUNT(*) FROM items").fetchone()[0]
+    tools     = con.execute("SELECT COUNT(*) FROM items WHERE type='tool'").fetchone()[0]
+    parts     = con.execute("SELECT COUNT(*) FROM items WHERE type='part'").fetchone()[0]
+    low_stock = con.execute(
+        "SELECT COUNT(*) FROM items WHERE type='part' AND reorder_qty IS NOT NULL AND quantity<=reorder_qty"
+    ).fetchone()[0]
+    needs_svc = con.execute(
+        "SELECT COUNT(*) FROM items WHERE type='tool' AND condition_state='needs_repair'"
+    ).fetchone()[0]
+    categories = [r[0] for r in con.execute(
+        "SELECT DISTINCT category FROM items WHERE category!='' ORDER BY category"
+    ).fetchall()]
+    con.close()
+    return {"total": total, "tools": tools, "parts": parts,
+            "low_stock": low_stock, "needs_service": needs_svc, "categories": categories}
+
+
+def inv_export_csv() -> str:
+    import io, csv
+    con = _inv_conn()
+    rows = con.execute("SELECT * FROM items ORDER BY type,category,name").fetchall()
+    con.close()
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["id", "type", "name", "category", "quantity", "unit", "reorder_qty",
+                "location", "condition", "last_service", "notes", "tags", "created", "updated"])
+    for r in rows:
+        w.writerow([r["id"], r["type"], r["name"], r["category"], r["quantity"],
+                    r["unit"], r["reorder_qty"], r["location"], r["condition_state"],
+                    r["last_service"], r["notes"], r["tags"], r["created_at"], r["updated_at"]])
+    return buf.getvalue()
+
+
+# ═══════════════════════════════════════════════════
 # System Info
 # ═══════════════════════════════════════════════════
 
@@ -443,6 +624,11 @@ def get_download_status():
 # ═══════════════════════════════════════════════════
 # MapLibre GL Style Generator
 # ═══════════════════════════════════════════════════
+
+def _build_maplibre_style(pmtiles_url: str) -> dict:
+    """Single-source style — kept for legacy /api/maps/styles endpoint."""
+    return _build_combined_style(["_single"], override_urls={"_single": pmtiles_url})
+
 
 def _build_combined_style(installed_ids: list, override_urls: dict = None) -> dict:
     """Build a MapLibre GL style with ALL installed maps as simultaneous sources."""
@@ -1659,19 +1845,153 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self._json(200, {"path": str(storage) if storage else None,
                              "configured": storage is not None}); return
 
+        # MapLibre GL style (legacy single-map endpoint)
+        if clean_path.startswith("/api/maps/styles"):
+            qs       = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            map_name = (qs.get("map", [""])[0] or "").strip()
+            if not map_name:
+                self._json(400, {"error": "?map= required"}); return
+            dash_port   = get_port("dashboard")
+            pmtiles_url = f"pmtiles://http://localhost:{dash_port}/api/maps/file/{map_name}"
+            self._json(200, _build_maplibre_style(pmtiles_url)); return
+
+        # ZIM Proxy — transparent proxy through Kiwix with postMessage bridge
+        if clean_path.startswith("/zim-proxy/"):
+            proxy_tail  = clean_path[len("/zim-proxy/"):]
+            qs          = ("?" + self.path.split("?", 1)[1]) if "?" in self.path else ""
+            kiwix_port  = get_port("kiwix")
+            kiwix_url   = f"http://127.0.0.1:{kiwix_port}/zim/{proxy_tail}{qs}"
+            try:
+                req = urllib.request.Request(
+                    kiwix_url,
+                    headers={"User-Agent": "SVRN-reader/1.0", "Accept": "*/*"},
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    ct     = resp.headers.get("Content-Type", "application/octet-stream")
+                    enc    = resp.headers.get("Content-Encoding", "")
+                    data   = resp.read()
+                    status = resp.status
+
+                if "text/html" in ct:
+                    data = data.replace(b'href="/zim/',   b'href="/zim-proxy/')
+                    data = data.replace(b'action="/zim/', b'action="/zim-proxy/')
+                    data = data.replace(b'src="/zim/',    b'src="/zim-proxy/')
+
+                    bridge = b'''<script>
+(function(){
+  function _svnNotify(){
+    try{
+      var raw=location.pathname;
+      var rest=raw.replace(/^\\/zim-proxy\\//,'');
+      var slash=rest.indexOf('/');
+      var zim=slash>=0?rest.slice(0,slash):rest;
+      var artPath=slash>=0?rest.slice(slash+1):'';
+      var last=artPath.split('/').pop()||'';
+      var title=document.title||decodeURIComponent(last).replace(/_/g,' ');
+      if(window.parent&&window.parent!==window){
+        window.parent.postMessage({type:'zim-nav',path:artPath,title:title,zim:zim},'*');
+      }
+    }catch(e){}
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',_svnNotify);
+  }else{
+    _svnNotify();
+  }
+  var _last=location.href;
+  setInterval(function(){if(location.href!==_last){_last=location.href;_svnNotify();}},400);
+})();
+</script>'''
+                    if b"</body>" in data:
+                        data = data.replace(b"</body>", bridge + b"</body>", 1)
+                    elif b"</html>" in data:
+                        data = data.replace(b"</html>", bridge + b"</html>", 1)
+                    else:
+                        data += bridge
+
+                self.send_response(status)
+                self.send_header("Content-Type",   ct)
+                if enc:
+                    self.send_header("Content-Encoding", enc)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("X-Frame-Options", "SAMEORIGIN")
+                self.end_headers()
+                self.wfile.write(data)
+            except Exception as ex:
+                self.send_error(502, f"ZIM proxy error: {ex}")
+            return
+
+        # /api/zim-text — fetch article text by title (resolves path from title)
+        if clean_path == "/api/zim-text":
+            _aq   = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            zn    = _aq.get("zim",   [""])[0].strip()
+            title = _aq.get("title", [""])[0].strip()
+            if not zn or not title:
+                self._json(400, {"error": "zim and title required"}); return
+            title_under = title.replace(" ", "_")
+            text = ""
+            for candidate in [
+                f"A/{title_under}",
+                f"A/{title}",
+                title_under,
+                title,
+                f"A/{urllib.parse.quote(title_under, safe='')}",
+            ]:
+                t = _fetch_zim_article_text(zn, candidate)
+                if t and len(t) > 120:
+                    text = t
+                    break
+            self._json(200, {"text": text, "title": title, "zim": zn, "found": bool(text)}); return
+
+        # ── Inventory GET routes ─────────────────────────────────────────────
+        if clean_path == "/api/inventory/stats":
+            self._json(200, inv_stats()); return
+
+        if clean_path == "/api/inventory/items":
+            _iq     = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            items   = inv_list(
+                type_filter = _iq.get("type",     [None])[0],
+                category    = _iq.get("category", [None])[0],
+                q           = _iq.get("q",        [None])[0],
+            )
+            self._json(200, items); return
+
+        if clean_path.startswith("/api/inventory/items/") and not clean_path.endswith("/adjust"):
+            try:
+                item_id = int(clean_path.split("/")[-1])
+                item    = inv_get(item_id)
+                self._json(200, item) if item else self._json(404, {"error": "not found"})
+            except ValueError:
+                self._json(400, {"error": "invalid id"})
+            return
+
+        if clean_path == "/api/inventory/export.csv":
+            csv_data = inv_export_csv().encode()
+            self.send_response(200)
+            self.send_header("Content-Type",        "text/csv")
+            self.send_header("Content-Disposition", "attachment; filename=inventory.csv")
+            self.send_header("Content-Length",      str(len(csv_data)))
+            self.end_headers()
+            self.wfile.write(csv_data); return
+
         # Page routes
         page_map = {
-            "/chat":       "/chat.html",
-            "/maps":       "/maps.html",
-            "/notes":      "/notes.html",
-            "/settings":   "/settings.html",
-            "/docs":       "/docs.html",
-            "/library":    "/library.html",
-            "/datatools":  "/datatools.html",
-            "/codeassist": "/codeassist.html",
-            "/ose":        "/ose.html",
-            "/reader":     "/reader.html",
-            "/setup":      "/setup.html",
+            "/chat":        "/chat.html",
+            "/maps":        "/maps.html",
+            "/notes":       "/notes.html",
+            "/settings":    "/settings.html",
+            "/docs":        "/docs.html",
+            "/library":     "/library.html",
+            "/datatools":   "/datatools.html",
+            "/codeassist":  "/codeassist.html",
+            "/ose":         "/ose-library.html",
+            "/ose-wiki":    "/ose.html",
+            "/reader":      "/reader.html",
+            "/setup":       "/setup.html",
+            "/education":   "/education.html",
+            "/medical":     "/medical.html",
+            "/wikipedia":   "/wikipedia.html",
+            "/inventory":   "/inventory.html",
         }
         if clean_path in page_map:
             self.path = page_map[clean_path]
@@ -1764,7 +2084,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self._json(413, {"error": "Request body too large"}); return
         body   = json.loads(self.rfile.read(length) or b"{}") if length else {}
         try:
-            if clean_path.startswith("/api/notes/"):
+            # PUT /api/inventory/items/<id>
+            if clean_path.startswith("/api/inventory/items/"):
+                try:
+                    item_id = int(clean_path.split("/")[-1])
+                    item    = inv_update(item_id, body)
+                    self._json(200, item) if item else self._json(404, {"error": "not found"})
+                except ValueError:
+                    self._json(400, {"error": "invalid id"})
+            elif clean_path.startswith("/api/notes/"):
                 note_id = clean_path[len("/api/notes/"):]
                 updated = update_note(note_id, body.get("title",""), body.get("content",""))
                 self._json(200, updated) if updated else self._json(404, {"error": "not found"})
@@ -1776,7 +2104,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def do_DELETE(self):
         clean_path = urllib.parse.urlparse(self.path).path
         try:
-            if clean_path.startswith("/api/notes/"):
+            if clean_path.startswith("/api/inventory/items/"):
+                try:
+                    item_id = int(clean_path.split("/")[-1])
+                    self._json(200, {"deleted": inv_delete(item_id)})
+                except ValueError:
+                    self._json(400, {"error": "invalid id"})
+            elif clean_path.startswith("/api/notes/"):
                 note_id = clean_path[len("/api/notes/"):]
                 self._json(200, {"deleted": delete_note(note_id)})
             else:
@@ -1998,6 +2332,19 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
             elif clean_path == "/api/maps/delete":
                 self._json(200, delete_map(body.get("preset_id","")))
+
+            # ── Inventory POST routes ─────────────────────────────────────
+            elif clean_path == "/api/inventory/items":
+                self._json(201, inv_create(body))
+
+            elif clean_path.startswith("/api/inventory/items/") and clean_path.endswith("/adjust"):
+                try:
+                    item_id = int(clean_path.split("/")[-2])
+                    delta   = float(body.get("delta", 0))
+                    item    = inv_adjust_qty(item_id, delta)
+                    self._json(200, item or {"error": "not found"})
+                except (ValueError, TypeError) as e:
+                    self._json(400, {"error": str(e)})
 
             # ── Notes ─────────────────────────────────────────────────────
             elif clean_path == "/api/notes":

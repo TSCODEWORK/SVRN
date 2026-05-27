@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inventory — SOVEREIGN</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:       #0c0d11;
+  --s1:       #111318;  /* sidebar */
+  --s2:       #161920;  /* main surface */
+  --s3:       #1c2028;  /* cards / rows */
+  --s4:       #22262f;  /* hover */
+  --border:   rgba(255,255,255,0.06);
+  --border2:  rgba(255,255,255,0.11);
+  --text:     #e2e4ec;
+  --muted:    #5a6070;
+  --muted2:   #8892a0;
+  --accent:   #f59e0b;
+  --acc2:     #d97706;
+  --green:    #34d399;
+  --blue:     #60a5fa;
+  --red:      #f87171;
+  --yellow:   #fbbf24;
+  --r:        8px;
+  --sidebar:  220px;
+  --detail:   360px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;overflow:hidden}
+
+/* ── 3-pane shell ─────────────────────────────── */
+.shell{display:flex;height:100vh;overflow:hidden}
+
+/* ══════════════════════════════════════════
+   LEFT SIDEBAR
+══════════════════════════════════════════ */
+.sidebar{
+  width:var(--sidebar);flex-shrink:0;
+  background:var(--s1);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.sb-head{
+  padding:14px 16px 10px;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.back-link{
+  display:flex;align-items:center;gap:5px;color:var(--muted2);text-decoration:none;
+  font-size:12px;font-weight:500;margin-bottom:10px;transition:color .15s;
+}
+.back-link:hover{color:var(--text)}
+.sb-title{font-size:15px;font-weight:700;letter-spacing:-.2px;display:flex;align-items:center;gap:7px}
+.sb-icon{font-size:16px}
+
+/* KPI strip */
+.kpi-strip{
+  display:grid;grid-template-columns:1fr 1fr;gap:5px;
+  padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.kpi{background:var(--s3);border-radius:7px;padding:8px 10px}
+.kpi-val{font-size:18px;font-weight:700;line-height:1}
+.kpi-lbl{font-size:10px;color:var(--muted2);font-weight:500;margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+.kpi.alert .kpi-val{color:var(--red)}
+.kpi.warn  .kpi-val{color:var(--yellow)}
+
+/* Nav sections */
+.sb-scroll{flex:1;overflow-y:auto;padding:8px 0}
+.sb-scroll::-webkit-scrollbar{width:3px}
+.sb-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.sb-section{padding:8px 12px 4px}
+.sb-section-label{
+  font-size:10px;font-weight:700;letter-spacing:.07em;color:var(--muted);
+  text-transform:uppercase;margin-bottom:4px;
+}
+.nav-item{
+  display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;
+  cursor:pointer;transition:background .12s,color .12s;user-select:none;
+  color:var(--muted2);font-weight:500;
+}
+.nav-item:hover{background:var(--s3);color:var(--text)}
+.nav-item.active{background:rgba(245,158,11,0.12);color:var(--accent)}
+.nav-icon{font-size:13px;width:16px;text-align:center;flex-shrink:0}
+.nav-label{flex:1}
+.nav-count{
+  font-size:11px;font-weight:600;padding:1px 6px;border-radius:10px;
+  background:var(--s4);color:var(--muted2);
+}
+.nav-item.active .nav-count{background:rgba(245,158,11,0.18);color:var(--accent)}
+.nav-item.danger{color:var(--muted2)}
+.nav-item.danger:hover{color:var(--red);background:rgba(248,113,113,0.08)}
+.nav-item.danger.active{background:rgba(248,113,113,0.1);color:var(--red)}
+.nav-item.danger.active .nav-count{background:rgba(248,113,113,0.15);color:var(--red)}
+.nav-item.warn-item{color:var(--muted2)}
+.nav-item.warn-item.active{background:rgba(251,191,36,0.08);color:var(--yellow)}
+.nav-item.warn-item.active .nav-count{background:rgba(251,191,36,0.12);color:var(--yellow)}
+
+.sb-divider{height:1px;background:var(--border);margin:6px 12px}
+
+/* ══════════════════════════════════════════
+   MAIN CONTENT AREA
+══════════════════════════════════════════ */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--s2)}
+
+/* Toolbar */
+.toolbar{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0;
+  background:var(--s1);
+}
+.view-title{font-size:14px;font-weight:700;min-width:80px;white-space:nowrap}
+.search-wrap{flex:1;max-width:280px;position:relative}
+.search-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.search-input{
+  width:100%;padding:6px 9px 6px 29px;border-radius:7px;
+  border:1px solid var(--border2);background:var(--bg);color:var(--text);
+  font-size:12px;outline:none;transition:border-color .15s;
+}
+.search-input:focus{border-color:var(--accent)}
+.search-input::placeholder{color:var(--muted)}
+
+.sort-select{
+  padding:5px 8px;border-radius:7px;border:1px solid var(--border2);
+  background:var(--bg);color:var(--text);font-size:12px;outline:none;cursor:pointer;
+}
+.toolbar-right{display:flex;align-items:center;gap:6px;margin-left:auto}
+.tb-btn{
+  padding:6px 12px;border-radius:7px;border:1px solid var(--border2);
+  background:none;color:var(--muted2);font-size:12px;font-weight:600;cursor:pointer;
+  transition:all .15s;
+}
+.tb-btn:hover{border-color:var(--border2);background:var(--s3);color:var(--text)}
+.tb-btn.primary{
+  background:var(--accent);border-color:var(--accent);color:#160800;
+}
+.tb-btn.primary:hover{background:var(--acc2);border-color:var(--acc2)}
+.tb-btn.ai-btn{border-color:rgba(167,139,250,0.3);color:#a78bfa}
+.tb-btn.ai-btn:hover{background:rgba(167,139,250,0.08);border-color:rgba(167,139,250,0.5)}
+.item-count-lbl{font-size:11px;color:var(--muted);white-space:nowrap}
+
+/* ── Table ────────────────────────────────── */
+.table-wrap{flex:1;overflow-y:auto}
+.table-wrap::-webkit-scrollbar{width:5px}
+.table-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:5px}
+
+table{width:100%;border-collapse:collapse}
+thead{position:sticky;top:0;z-index:2;background:var(--s1)}
+th{
+  padding:8px 12px;text-align:left;font-size:11px;font-weight:700;
+  color:var(--muted);letter-spacing:.05em;text-transform:uppercase;
+  border-bottom:1px solid var(--border2);white-space:nowrap;user-select:none;
+  cursor:pointer;transition:color .12s;
+}
+th:hover{color:var(--text)}
+th .sort-arrow{margin-left:4px;opacity:.4}
+th.sorted{color:var(--accent)}
+th.sorted .sort-arrow{opacity:1;color:var(--accent)}
+th.no-sort{cursor:default}
+th.no-sort:hover{color:var(--muted)}
+
+td{
+  padding:0 12px;height:44px;border-bottom:1px solid var(--border);
+  font-size:12.5px;vertical-align:middle;
+}
+tr.item-row{cursor:pointer;transition:background .1s}
+tr.item-row:hover td{background:var(--s3)}
+tr.item-row.selected td{background:rgba(245,158,11,0.07)}
+tr.item-row.selected td:first-child{border-left:2px solid var(--accent)}
+
+/* Status dot */
+.status-dot{
+  display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;
+}
+.dot-ok{background:var(--green)}
+.dot-low{background:var(--yellow)}
+.dot-crit{background:var(--red)}
+.dot-warn{background:var(--yellow)}
+.dot-repair{background:var(--red)}
+.dot-tool{background:var(--blue)}
+
+/* Type badge */
+.type-badge{
+  font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;
+  letter-spacing:.03em;text-transform:uppercase;
+}
+.badge-tool{background:rgba(96,165,250,0.12);color:var(--blue);border:1px solid rgba(96,165,250,0.2)}
+.badge-part{background:rgba(52,211,153,0.1);color:var(--green);border:1px solid rgba(52,211,153,0.18)}
+
+/* Qty cell */
+.qty-cell{display:flex;align-items:center;gap:6px}
+.qty-val{font-weight:700;font-size:13px;min-width:28px}
+.qty-val.low{color:var(--yellow)}
+.qty-val.crit{color:var(--red)}
+.qty-unit{color:var(--muted2);font-size:11px}
+.qty-mini-btns{display:flex;gap:2px;opacity:0;transition:opacity .12s}
+tr:hover .qty-mini-btns{opacity:1}
+.qmb{
+  background:var(--s4);border:1px solid var(--border2);border-radius:4px;
+  color:var(--text);cursor:pointer;font-size:11px;padding:1px 5px;line-height:1.4;
+  transition:all .12s;
+}
+.qmb:hover{background:var(--accent);border-color:var(--accent);color:#160800}
+.qmb.m:hover{background:rgba(248,113,113,.2);border-color:var(--red);color:var(--red)}
+
+/* Cond badge */
+.cond-badge{font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px}
+.cond-good{background:rgba(52,211,153,0.1);color:var(--green)}
+.cond-fair{background:rgba(251,191,36,0.1);color:var(--yellow)}
+.cond-repair{background:rgba(248,113,113,0.1);color:var(--red)}
+
+/* Low-stock pill */
+.low-pill{
+  font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;
+  background:rgba(251,191,36,.12);color:var(--yellow);border:1px solid rgba(251,191,36,.2);
+  margin-left:4px;
+}
+.crit-pill{
+  font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;
+  background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.2);
+  margin-left:4px;
+}
+
+/* Location chip */
+.loc-chip{
+  font-size:11px;color:var(--muted2);
+  display:inline-flex;align-items:center;gap:3px;
+}
+
+/* Row actions */
+.row-actions{display:flex;gap:4px;justify-content:flex-end;opacity:0;transition:opacity .12s}
+tr:hover .row-actions{opacity:1}
+.ra-btn{
+  background:none;border:none;color:var(--muted);cursor:pointer;
+  padding:3px 6px;border-radius:5px;font-size:12px;transition:all .12s;
+}
+.ra-btn:hover{background:var(--s4);color:var(--text)}
+.ra-btn.del:hover{color:var(--red)}
+
+/* Empty state */
+.empty-state{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100%;min-height:300px;color:var(--muted);text-align:center;padding:40px;
+}
+.empty-icon{font-size:40px;margin-bottom:12px;opacity:.35}
+.empty-title{font-size:16px;font-weight:600;color:var(--muted2);margin-bottom:6px}
+.empty-sub{font-size:12px;line-height:1.7;max-width:280px}
+.empty-cta{
+  margin-top:16px;padding:7px 18px;border-radius:7px;border:none;
+  background:var(--accent);color:#160800;font-size:13px;font-weight:700;cursor:pointer;
+}
+
+/* ══════════════════════════════════════════
+   DETAIL PANEL (right)
+══════════════════════════════════════════ */
+.detail-panel{
+  width:0;border-left:1px solid var(--border);
+  background:var(--s1);display:flex;flex-direction:column;
+  transition:width .22s cubic-bezier(.4,0,.2,1);overflow:hidden;flex-shrink:0;
+}
+.detail-panel.open{width:var(--detail)}
+.detail-inner{width:var(--detail);display:flex;flex-direction:column;height:100%;overflow:hidden}
+
+.dp-head{
+  padding:14px 16px 12px;border-bottom:1px solid var(--border);flex-shrink:0;
+  display:flex;align-items:flex-start;gap:10px;
+}
+.dp-title-block{flex:1;min-width:0}
+.dp-name{font-size:15px;font-weight:700;line-height:1.3;margin-bottom:4px}
+.dp-badges{display:flex;gap:5px;flex-wrap:wrap}
+.dp-close{
+  background:none;border:none;color:var(--muted);cursor:pointer;
+  font-size:18px;padding:1px 5px;border-radius:5px;transition:all .12s;flex-shrink:0;
+}
+.dp-close:hover{background:var(--s3);color:var(--text)}
+
+.dp-body{flex:1;overflow-y:auto;padding:14px 16px}
+.dp-body::-webkit-scrollbar{width:3px}
+.dp-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* Qty adjuster (parts) */
+.qty-adjuster{
+  background:var(--s3);border-radius:10px;padding:14px 16px;margin-bottom:14px;
+  display:flex;align-items:center;gap:12px;
+}
+.qa-main{flex:1}
+.qa-qty{font-size:28px;font-weight:800;line-height:1}
+.qa-qty.low{color:var(--yellow)}
+.qa-qty.crit{color:var(--red)}
+.qa-unit{font-size:12px;color:var(--muted2);margin-top:2px}
+.qa-btns{display:flex;flex-direction:column;gap:5px}
+.qa-btn{
+  padding:5px 14px;border-radius:6px;border:none;cursor:pointer;font-size:13px;font-weight:700;
+  transition:all .12s;
+}
+.qa-plus{background:rgba(52,211,153,.15);color:var(--green)}
+.qa-plus:hover{background:rgba(52,211,153,.25)}
+.qa-minus{background:rgba(248,113,113,.1);color:var(--red)}
+.qa-minus:hover{background:rgba(248,113,113,.2)}
+
+/* Field rows */
+.dp-section{margin-bottom:16px}
+.dp-section-lbl{
+  font-size:10px;font-weight:700;letter-spacing:.07em;color:var(--muted);
+  text-transform:uppercase;margin-bottom:8px;
+  display:flex;align-items:center;gap:6px;
+}
+.dp-section-lbl::after{content:'';flex:1;height:1px;background:var(--border)}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.field-grid.single{grid-template-columns:1fr}
+.field{background:var(--s3);border-radius:7px;padding:9px 11px}
+.field-lbl{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+.field-val{font-size:13px;font-weight:500;color:var(--text);word-break:break-word}
+.field-val.empty{color:var(--muted);font-style:italic}
+
+/* Edit form in panel */
+.dp-edit-form{display:none;padding:14px 16px;flex:1;overflow-y:auto}
+.dp-edit-form.open{display:block}
+.dp-body.editing{display:none}
+.ef-group{margin-bottom:10px}
+.ef-label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;display:block}
+.ef-input,.ef-select,.ef-textarea{
+  width:100%;padding:7px 10px;border-radius:7px;border:1px solid var(--border2);
+  background:var(--bg);color:var(--text);font-size:12.5px;outline:none;
+  font-family:inherit;transition:border-color .15s;
+}
+.ef-input:focus,.ef-select:focus,.ef-textarea:focus{border-color:var(--accent)}
+.ef-textarea{resize:vertical;min-height:60px}
+.ef-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.ef-row.triple{grid-template-columns:1fr 1fr 1fr}
+.type-toggle{display:flex;border-radius:7px;overflow:hidden;border:1px solid var(--border2);margin-bottom:12px}
+.tt-opt{
+  flex:1;padding:7px;text-align:center;font-size:12px;font-weight:600;
+  border:none;background:none;color:var(--muted);cursor:pointer;transition:all .15s;
+}
+.tt-opt.active.tool{background:rgba(96,165,250,.12);color:var(--blue)}
+.tt-opt.active.part{background:rgba(52,211,153,.1);color:var(--green)}
+
+/* Panel footer */
+.dp-foot{
+  padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0;
+  display:flex;gap:8px;align-items:center;
+}
+.dp-foot-btn{
+  flex:1;padding:7px 12px;border-radius:7px;border:none;cursor:pointer;
+  font-size:12px;font-weight:700;transition:all .15s;
+}
+.dp-edit-btn{background:var(--accent);color:#160800}
+.dp-edit-btn:hover{background:var(--acc2)}
+.dp-save-btn{background:var(--accent);color:#160800;display:none}
+.dp-save-btn:hover{background:var(--acc2)}
+.dp-cancel-btn{background:var(--s3);color:var(--muted2);display:none}
+.dp-cancel-btn:hover{color:var(--text);background:var(--s4)}
+.dp-del-btn{
+  padding:7px 10px;border-radius:7px;border:1px solid var(--border2);
+  background:none;color:var(--muted);cursor:pointer;font-size:12px;transition:all .15s;
+}
+.dp-del-btn:hover{border-color:var(--red);color:var(--red);background:rgba(248,113,113,.06)}
+
+/* ══════════════════════════════════════════
+   AI DRAWER (slides over detail panel)
+══════════════════════════════════════════ */
+.ai-drawer{
+  position:fixed;top:0;right:0;bottom:0;width:380px;
+  background:var(--s1);border-left:1px solid var(--border2);
+  display:flex;flex-direction:column;z-index:50;
+  transform:translateX(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);
+  box-shadow:-4px 0 24px rgba(0,0,0,.4);
+}
+.ai-drawer.open{transform:translateX(0)}
+
+.ai-head{
+  padding:14px 16px 10px;border-bottom:1px solid var(--border);flex-shrink:0;
+  display:flex;align-items:center;gap:10px;
+}
+.ai-head-icon{font-size:18px}
+.ai-head-text .ai-title{font-size:14px;font-weight:700}
+.ai-head-text .ai-sub{font-size:11px;color:var(--muted2)}
+.ai-close{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:2px 5px;border-radius:5px;transition:all .12s}
+.ai-close:hover{background:var(--s3);color:var(--text)}
+
+.ai-qp{padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.ai-qp-lbl{font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+.ai-qp-grid{display:flex;flex-wrap:wrap;gap:4px}
+.ai-qp-btn{
+  padding:4px 9px;border-radius:5px;border:1px solid var(--border2);
+  background:none;color:var(--muted2);font-size:11px;cursor:pointer;transition:all .12s;
+}
+.ai-qp-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(245,158,11,.05)}
+
+.ai-msgs{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:9px}
+.ai-msgs::-webkit-scrollbar{width:3px}
+.ai-msgs::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.ai-msg{padding:9px 12px;border-radius:9px;font-size:12.5px;line-height:1.55}
+.ai-msg.user{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.16);align-self:flex-end;max-width:92%}
+.ai-msg.assistant{background:var(--s3);border:1px solid var(--border)}
+.ai-msg.assistant strong{font-weight:700}
+.ai-msg.assistant ul{margin-left:14px;margin-bottom:4px}
+.ai-msg.assistant li{margin-bottom:2px}
+.ai-msg.assistant code{background:rgba(0,0,0,.3);padding:1px 4px;border-radius:3px;font-size:11px}
+
+.ai-input-row{padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:6px}
+.ai-input{
+  flex:1;padding:7px 11px;border-radius:8px;border:1px solid var(--border2);
+  background:var(--bg);color:var(--text);font-size:12.5px;outline:none;resize:none;
+  font-family:inherit;min-height:36px;max-height:100px;transition:border-color .15s;
+}
+.ai-input:focus{border-color:var(--accent)}
+.ai-send{
+  padding:7px 12px;border-radius:8px;border:none;background:var(--accent);
+  color:#160800;font-size:13px;font-weight:800;cursor:pointer;align-self:flex-end;
+  transition:opacity .12s;
+}
+.ai-send:hover{opacity:.85}
+.ai-send:disabled{opacity:.35;cursor:not-allowed}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ══════ SIDEBAR ══════ -->
+<aside class="sidebar">
+  <div class="sb-head">
+    <a href="/" class="back-link">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Home
+    </a>
+    <div class="sb-title"><span class="sb-icon">📋</span> Inventory</div>
+  </div>
+
+  <div class="kpi-strip">
+    <div class="kpi">
+      <div class="kpi-val" id="kpi-tools">—</div>
+      <div class="kpi-lbl">Tools</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" id="kpi-parts">—</div>
+      <div class="kpi-lbl">Parts</div>
+    </div>
+    <div class="kpi warn" id="kpi-low-wrap">
+      <div class="kpi-val" id="kpi-low">0</div>
+      <div class="kpi-lbl">Low Stock</div>
+    </div>
+    <div class="kpi alert" id="kpi-repair-wrap">
+      <div class="kpi-val" id="kpi-repair">0</div>
+      <div class="kpi-lbl">Need Repair</div>
+    </div>
+  </div>
+
+  <div class="sb-scroll">
+    <div class="sb-section">
+      <div class="sb-section-label">View</div>
+      <div class="nav-item active" id="nav-all"    onclick="setNav('all')">
+        <span class="nav-icon">▤</span><span class="nav-label">All Items</span>
+        <span class="nav-count" id="nc-all">—</span>
+      </div>
+      <div class="nav-item" id="nav-tool" onclick="setNav('tool')">
+        <span class="nav-icon">🔧</span><span class="nav-label">Tools</span>
+        <span class="nav-count" id="nc-tool">—</span>
+      </div>
+      <div class="nav-item" id="nav-part" onclick="setNav('part')">
+        <span class="nav-icon">⚙️</span><span class="nav-label">Parts & Materials</span>
+        <span class="nav-count" id="nc-part">—</span>
+      </div>
+    </div>
+
+    <div class="sb-divider"></div>
+
+    <div class="sb-section">
+      <div class="sb-section-label">Alerts</div>
+      <div class="nav-item warn-item" id="nav-lowstock" onclick="setNav('lowstock')">
+        <span class="nav-icon">⚠</span><span class="nav-label">Low Stock</span>
+        <span class="nav-count" id="nc-low">0</span>
+      </div>
+      <div class="nav-item danger" id="nav-repair" onclick="setNav('repair')">
+        <span class="nav-icon">🔴</span><span class="nav-label">Needs Repair</span>
+        <span class="nav-count" id="nc-repair">0</span>
+      </div>
+    </div>
+
+    <div class="sb-divider"></div>
+
+    <div class="sb-section">
+      <div class="sb-section-label">Categories</div>
+      <div id="cat-nav"></div>
+    </div>
+  </div>
+</aside>
+
+<!-- ══════ MAIN ══════ -->
+<div class="main">
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="view-title" id="view-title">All Items</div>
+
+    <div class="search-wrap">
+      <svg class="search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="search-input" id="search" placeholder="Search… ⌘K" oninput="renderTable()">
+    </div>
+
+    <select class="sort-select" id="sort-by" onchange="renderTable()">
+      <option value="name">Name A–Z</option>
+      <option value="name-d">Name Z–A</option>
+      <option value="category">Category</option>
+      <option value="qty-asc">Qty ↑</option>
+      <option value="qty-desc">Qty ↓</option>
+      <option value="updated">Recently updated</option>
+    </select>
+
+    <div class="toolbar-right">
+      <span class="item-count-lbl" id="item-count-lbl"></span>
+      <button class="tb-btn" onclick="exportCSV()" title="Download full inventory as CSV">↓ Export CSV</button>
+      <button class="tb-btn ai-btn" onclick="toggleAI()">✦ Inventory AI</button>
+      <button class="tb-btn primary" onclick="openAdd()">+ Add Item</button>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap" id="table-wrap">
+    <table id="items-table">
+      <thead>
+        <tr>
+          <th class="no-sort" style="width:30px"></th>
+          <th onclick="setSort('name')">Name <span class="sort-arrow">↕</span></th>
+          <th onclick="setSort('category')">Category <span class="sort-arrow">↕</span></th>
+          <th onclick="setSort('location')">Location <span class="sort-arrow">↕</span></th>
+          <th onclick="setSort('qty-desc')" style="width:160px">Quantity / Condition <span class="sort-arrow">↕</span></th>
+          <th class="no-sort" style="width:80px;text-align:right">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+    <div class="empty-state" id="empty-state" style="display:none">
+      <div class="empty-icon">📦</div>
+      <div class="empty-title">Nothing here yet</div>
+      <div class="empty-sub">Add your first tool or part. Everything is stored locally in a single SQLite file.</div>
+      <button class="empty-cta" onclick="openAdd()">+ Add First Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ DETAIL PANEL ══════ -->
+<div class="detail-panel" id="detail-panel">
+  <div class="detail-inner">
+    <div class="dp-head">
+      <div class="dp-title-block">
+        <div class="dp-name" id="dp-name">—</div>
+        <div class="dp-badges" id="dp-badges"></div>
+      </div>
+      <button class="dp-close" onclick="closeDetail()">✕</button>
+    </div>
+
+    <!-- View mode -->
+    <div class="dp-body" id="dp-body">
+      <!-- Qty adjuster (parts) -->
+      <div id="dp-qty-adj" class="qty-adjuster" style="display:none">
+        <div class="qa-main">
+          <div class="qa-qty" id="dp-qty">—</div>
+          <div class="qa-unit" id="dp-unit"></div>
+          <div id="dp-reorder-note" style="font-size:11px;margin-top:4px"></div>
+        </div>
+        <div class="qa-btns">
+          <button class="qa-btn qa-plus" onclick="adjustDetail(1)">＋1</button>
+          <button class="qa-btn qa-minus" onclick="adjustDetail(-1)">−1</button>
+        </div>
+      </div>
+
+      <div class="dp-section">
+        <div class="dp-section-lbl">Details</div>
+        <div class="field-grid" id="dp-fields"></div>
+      </div>
+
+      <div class="dp-section" id="dp-notes-section" style="display:none">
+        <div class="dp-section-lbl">Notes</div>
+        <div class="field-grid single">
+          <div class="field"><div class="field-val" id="dp-notes-val"></div></div>
+        </div>
+      </div>
+
+      <div class="dp-section" id="dp-tags-section" style="display:none">
+        <div class="dp-section-lbl">Tags</div>
+        <div id="dp-tags-val" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+      </div>
+    </div>
+
+    <!-- Edit mode -->
+    <div class="dp-edit-form" id="dp-edit-form">
+      <div class="type-toggle">
+        <button class="tt-opt tool active" id="et-tool" onclick="setEditType('tool')">🔧 Tool</button>
+        <button class="tt-opt part"        id="et-part" onclick="setEditType('part')">⚙️ Part</button>
+      </div>
+      <div class="ef-group">
+        <label class="ef-label">Name *</label>
+        <input class="ef-input" id="ef-name" placeholder="Item name">
+      </div>
+      <div class="ef-row">
+        <div class="ef-group">
+          <label class="ef-label">Category</label>
+          <input class="ef-input" id="ef-cat" list="ef-cat-list" placeholder="Category">
+          <datalist id="ef-cat-list"></datalist>
+        </div>
+        <div class="ef-group">
+          <label class="ef-label">Location / Bin</label>
+          <input class="ef-input" id="ef-loc" placeholder="Shelf B-3">
+        </div>
+      </div>
+      <div id="ef-part-fields">
+        <div class="ef-row triple">
+          <div class="ef-group">
+            <label class="ef-label">Quantity</label>
+            <input class="ef-input" id="ef-qty" type="number" min="0" step="0.01" placeholder="0">
+          </div>
+          <div class="ef-group">
+            <label class="ef-label">Unit</label>
+            <select class="ef-select" id="ef-unit">
+              <option>pcs</option><option>ft</option><option>m</option><option>in</option>
+              <option>kg</option><option>lb</option><option>L</option><option>gal</option>
+              <option>rolls</option><option>sets</option><option>bags</option><option>sheets</option><option>boxes</option>
+            </select>
+          </div>
+          <div class="ef-group">
+            <label class="ef-label">Reorder at</label>
+            <input class="ef-input" id="ef-reorder" type="number" min="0" step="0.01" placeholder="—">
+          </div>
+        </div>
+      </div>
+      <div id="ef-tool-fields">
+        <div class="ef-row">
+          <div class="ef-group">
+            <label class="ef-label">Condition</label>
+            <select class="ef-select" id="ef-cond">
+              <option value="good">✅ Good</option>
+              <option value="fair">⚠️ Fair</option>
+              <option value="needs_repair">🔴 Needs repair</option>
+            </select>
+          </div>
+          <div class="ef-group">
+            <label class="ef-label">Last serviced</label>
+            <input class="ef-input" id="ef-service" type="date">
+          </div>
+        </div>
+      </div>
+      <div class="ef-group">
+        <label class="ef-label">Tags</label>
+        <input class="ef-input" id="ef-tags" placeholder="hydraulic, ose, electrical">
+      </div>
+      <div class="ef-group">
+        <label class="ef-label">Notes</label>
+        <textarea class="ef-textarea" id="ef-notes" placeholder="Serial number, specs, supplier…"></textarea>
+      </div>
+    </div>
+
+    <div class="dp-foot">
+      <button class="dp-foot-btn dp-edit-btn"   id="dp-edit-btn"   onclick="startEdit()">Edit</button>
+      <button class="dp-foot-btn dp-save-btn"   id="dp-save-btn"   onclick="saveEdit()">Save Changes</button>
+      <button class="dp-foot-btn dp-cancel-btn" id="dp-cancel-btn" onclick="cancelEdit()">Cancel</button>
+      <button class="dp-del-btn"                id="dp-del-btn"    onclick="deleteSelected()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ AI DRAWER ══════ -->
+<div class="ai-drawer" id="ai-drawer">
+  <div class="ai-head">
+    <span class="ai-head-icon">✦</span>
+    <div class="ai-head-text">
+      <div class="ai-title">Inventory AI</div>
+      <div class="ai-sub">Parts advisor · Build planner</div>
+    </div>
+    <button class="ai-close" onclick="toggleAI()">✕</button>
+  </div>
+  <div class="ai-qp">
+    <div class="ai-qp-lbl">Quick prompts</div>
+    <div class="ai-qp-grid">
+      <button class="ai-qp-btn" onclick="quickAsk('What parts do I need to build a CEB press?')">CEB press parts</button>
+      <button class="ai-qp-btn" onclick="quickAsk('What tools are essential for an off-grid workshop?')">Essential tools</button>
+      <button class="ai-qp-btn" onclick="quickAsk('What are the Power Cube components and specs?')">Power Cube parts</button>
+      <button class="ai-qp-btn" onclick="quickAsk('What fasteners should I stock for fabrication?')">Fastener stock list</button>
+      <button class="ai-qp-btn" onclick="quickAsk('How should I set up a bin system for small parts?')">Bin organization</button>
+      <button class="ai-qp-btn" onclick="analyzeInventory()">Analyze my inventory</button>
+    </div>
+  </div>
+  <div class="ai-msgs" id="ai-msgs">
+    <div class="ai-msg assistant">
+      I'm your <strong>Inventory AI</strong>. I can see your inventory and help with OSE builds, parts lists, tool maintenance, and workshop organization. What are you building?
+    </div>
+  </div>
+  <div class="ai-input-row">
+    <textarea class="ai-input" id="ai-input" rows="1" placeholder="Ask about your shop…" onkeydown="onAIKey(event)"></textarea>
+    <button class="ai-send" id="ai-send" onclick="sendAI()">↑</button>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────
+let allItems    = [];
+let stats       = {};
+let navMode     = 'all';   // all | tool | part | lowstock | repair | cat:<name>
+let selectedId  = null;
+let editingId   = null;
+let editType    = 'tool';
+let chatHistory = [];
+let aiStreaming  = false;
+let sortKey     = 'name';
+let sortDir     = 1; // 1=asc -1=desc
+
+// ── Boot ───────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadAll();
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey||e.ctrlKey) && e.key==='k') { e.preventDefault(); document.getElementById('search').focus() }
+    if (e.key==='Escape') {
+      if (editingId!=null) cancelEdit();
+      else closeDetail();
+      if (document.getElementById('ai-drawer').classList.contains('open')) toggleAI();
+    }
+  });
+});
+
+async function loadAll() {
+  const [itemsR, statsR] = await Promise.all([
+    fetch('/api/inventory/items'), fetch('/api/inventory/stats')
+  ]);
+  allItems = await itemsR.json();
+  stats    = await statsR.json();
+  updateSidebar();
+  renderTable();
+  if (selectedId != null) {
+    const item = allItems.find(i => i.id === selectedId);
+    if (item) renderDetail(item); else closeDetail();
+  }
+}
+
+// ── Sidebar ────────────────────────────────────────
+function updateSidebar() {
+  document.getElementById('kpi-tools').textContent  = stats.tools  ?? '—';
+  document.getElementById('kpi-parts').textContent  = stats.parts  ?? '—';
+  document.getElementById('kpi-low').textContent    = stats.low_stock ?? 0;
+  document.getElementById('kpi-repair').textContent = stats.needs_service ?? 0;
+  document.getElementById('nc-all').textContent     = stats.total  ?? '—';
+  document.getElementById('nc-tool').textContent    = stats.tools  ?? '—';
+  document.getElementById('nc-part').textContent    = stats.parts  ?? '—';
+  document.getElementById('nc-low').textContent     = stats.low_stock ?? 0;
+  document.getElementById('nc-repair').textContent  = stats.needs_service ?? 0;
+
+  // Category nav
+  const catNav = document.getElementById('cat-nav');
+  catNav.innerHTML = (stats.categories || []).map(c => {
+    const count = allItems.filter(i => i.category === c).length;
+    const active = navMode === `cat:${c}` ? 'active' : '';
+    return `<div class="nav-item ${active}" onclick="setNav('cat:${esc(c)}')">
+      <span class="nav-icon" style="font-size:10px">●</span>
+      <span class="nav-label">${esc(c)}</span>
+      <span class="nav-count">${count}</span>
+    </div>`;
+  }).join('');
+
+  // Update datalist for edit form
+  const dl = document.getElementById('ef-cat-list');
+  if (dl) {
+    dl.innerHTML = (stats.categories||[]).map(c=>`<option value="${esc(c)}">`).join('');
+  }
+}
+
+function setNav(mode) {
+  navMode = mode;
+  // Update active states
+  ['all','tool','part','lowstock','repair'].forEach(k => {
+    document.getElementById(`nav-${k}`)?.classList.remove('active');
+  });
+  document.querySelectorAll('#cat-nav .nav-item').forEach(el => el.classList.remove('active'));
+
+  const map = {all:'nav-all',tool:'nav-tool',part:'nav-part',lowstock:'nav-lowstock',repair:'nav-repair'};
+  if (map[mode]) document.getElementById(map[mode])?.classList.add('active');
+  else {
+    // Category
+    document.querySelectorAll('#cat-nav .nav-item').forEach(el => {
+      if (el.getAttribute('onclick') === `setNav('${mode}')`) el.classList.add('active');
+    });
+  }
+
+  // View title
+  const titles = {all:'All Items',tool:'Tools',part:'Parts & Materials',lowstock:'⚠ Low Stock',repair:'🔴 Needs Repair'};
+  let title = titles[mode] || (mode.startsWith('cat:') ? mode.slice(4) : mode);
+  document.getElementById('view-title').textContent = title;
+  renderTable();
+}
+
+// ── Table Render ───────────────────────────────────
+function filteredItems() {
+  const q = document.getElementById('search').value.toLowerCase();
+  return allItems.filter(item => {
+    // Nav filter
+    if (navMode==='tool')     { if (item.type!=='tool') return false }
+    if (navMode==='part')     { if (item.type!=='part') return false }
+    if (navMode==='lowstock') { if (item.type!=='part'||item.reorder_qty==null||item.quantity==null||item.quantity>item.reorder_qty) return false }
+    if (navMode==='repair')   { if (item.condition_state!=='needs_repair') return false }
+    if (navMode.startsWith('cat:')) { if (item.category !== navMode.slice(4)) return false }
+    // Search
+    if (q) {
+      const haystack = [item.name, item.category, item.location, item.notes, item.tags].join(' ').toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function sortItems(items) {
+  const s = document.getElementById('sort-by').value;
+  return [...items].sort((a,b) => {
+    let va, vb;
+    if      (s==='name'||s==='name-d') { va=a.name?.toLowerCase()||''; vb=b.name?.toLowerCase()||'' }
+    else if (s==='category')           { va=a.category?.toLowerCase()||''; vb=b.category?.toLowerCase()||'' }
+    else if (s==='location')           { va=a.location?.toLowerCase()||''; vb=b.location?.toLowerCase()||'' }
+    else if (s==='qty-asc')            { va=a.quantity??Infinity; vb=b.quantity??Infinity }
+    else if (s==='qty-desc')           { va=b.quantity??-1; vb=a.quantity??-1 }
+    else if (s==='updated')            { va=b.updated_at||''; vb=a.updated_at||'' }
+    else                               { va=a.name?.toLowerCase()||''; vb=b.name?.toLowerCase()||'' }
+    if (s==='name-d') return va<vb?-1:va>vb?1:0;
+    return va<vb?-1:va>vb?1:0;
+  });
+}
+
+function setSort(key) {
+  document.getElementById('sort-by').value = key;
+  renderTable();
+}
+
+function renderTable() {
+  const items  = sortItems(filteredItems());
+  const tbody  = document.getElementById('table-body');
+  const empty  = document.getElementById('empty-state');
+
+  document.getElementById('item-count-lbl').textContent = `${items.length} item${items.length!==1?'s':''}`;
+
+  if (!items.length) {
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = items.map(item => {
+    const isLow  = item.type==='part' && item.reorder_qty!=null && item.quantity!=null && item.quantity <= item.reorder_qty;
+    const isCrit = item.type==='part' && item.quantity!=null && item.quantity === 0;
+    const dotCls = item.type==='tool'
+      ? (item.condition_state==='needs_repair' ? 'dot-repair' : item.condition_state==='fair' ? 'dot-warn' : 'dot-tool')
+      : (isCrit ? 'dot-crit' : isLow ? 'dot-low' : 'dot-ok');
+
+    const qtyCell = item.type==='part'
+      ? `<div class="qty-cell">
+           <span class="qty-val ${isCrit?'crit':isLow?'low':''}">${item.quantity??'—'}</span>
+           <span class="qty-unit">${esc(item.unit||'pcs')}</span>
+           ${isLow&&!isCrit?'<span class="low-pill">LOW</span>':''}
+           ${isCrit?'<span class="crit-pill">OUT</span>':''}
+           <div class="qty-mini-btns">
+             <button class="qmb"   onclick="event.stopPropagation();adjustRow(${item.id},1)">＋</button>
+             <button class="qmb m" onclick="event.stopPropagation();adjustRow(${item.id},-1)">−</button>
+           </div>
+         </div>`
+      : `<span class="cond-badge cond-${item.condition_state==='good'?'good':item.condition_state==='fair'?'fair':'repair'}">${
+           {good:'✓ Good',fair:'⚠ Fair',needs_repair:'Repair'}[item.condition_state]||item.condition_state
+         }</span>`;
+
+    const locCell = item.location
+      ? `<span class="loc-chip"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(item.location)}</span>`
+      : `<span style="color:var(--muted)">—</span>`;
+
+    const sel = selectedId===item.id ? 'selected' : '';
+    return `<tr class="item-row ${sel}" onclick="selectItem(${item.id})">
+      <td><span class="status-dot ${dotCls}"></span></td>
+      <td>
+        <span style="font-weight:600">${esc(item.name)}</span>
+        <span class="type-badge ${item.type==='tool'?'badge-tool':'badge-part'}" style="margin-left:6px">${item.type}</span>
+      </td>
+      <td>${item.category ? esc(item.category) : '<span style="color:var(--muted)">—</span>'}</td>
+      <td>${locCell}</td>
+      <td>${qtyCell}</td>
+      <td>
+        <div class="row-actions">
+          <button class="ra-btn" onclick="event.stopPropagation();selectAndEdit(${item.id})" title="Edit">✎</button>
+          <button class="ra-btn del" onclick="event.stopPropagation();deleteRow(${item.id})" title="Delete">🗑</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Selection & Detail Panel ───────────────────────
+function selectItem(id) {
+  if (editingId != null) return;
+  selectedId = id;
+  const item = allItems.find(i => i.id === id);
+  if (!item) return;
+  renderDetail(item);
+  document.getElementById('detail-panel').classList.add('open');
+  renderTable();
+}
+
+function selectAndEdit(id) {
+  selectItem(id);
+  setTimeout(startEdit, 60);
+}
+
+function closeDetail() {
+  selectedId = null;
+  editingId  = null;
+  document.getElementById('detail-panel').classList.remove('open');
+  cancelEdit();
+  renderTable();
+}
+
+function renderDetail(item) {
+  document.getElementById('dp-name').textContent = item.name;
+
+  // Badges
+  const badges = document.getElementById('dp-badges');
+  badges.innerHTML = `
+    <span class="type-badge ${item.type==='tool'?'badge-tool':'badge-part'}">${item.type}</span>
+    ${item.category ? `<span class="type-badge" style="background:var(--s3);color:var(--muted2);border:1px solid var(--border2)">${esc(item.category)}</span>` : ''}
+  `;
+
+  // Qty adjuster (parts only)
+  const adj = document.getElementById('dp-qty-adj');
+  if (item.type==='part') {
+    adj.style.display='';
+    const isLow = item.reorder_qty!=null && item.quantity!=null && item.quantity<=item.reorder_qty;
+    const isCrit = item.quantity!=null && item.quantity===0;
+    const qEl = document.getElementById('dp-qty');
+    qEl.textContent = item.quantity??'—';
+    qEl.className   = `qa-qty${isCrit?' crit':isLow?' low':''}`;
+    document.getElementById('dp-unit').textContent = item.unit||'pcs';
+    const rNote = document.getElementById('dp-reorder-note');
+    if (item.reorder_qty!=null) rNote.innerHTML = isLow
+      ? `<span style="color:var(--yellow)">⚠ Below reorder threshold (${item.reorder_qty} ${item.unit||'pcs'})</span>`
+      : `<span style="color:var(--muted)">Reorder at: ${item.reorder_qty} ${item.unit||'pcs'}</span>`;
+    else rNote.textContent='';
+  } else {
+    adj.style.display='none';
+  }
+
+  // Fields
+  const fields = item.type==='part'
+    ? []
+    : [
+        ['Condition', {good:'✓ Good',fair:'⚠ Fair',needs_repair:'🔴 Needs Repair'}[item.condition_state]||item.condition_state],
+        ['Last Serviced', item.last_service||null],
+      ];
+  fields.push(
+    ['Location', item.location||null],
+    ['Last Updated', item.updated_at ? item.updated_at.slice(0,10) : null],
+    ['Added', item.created_at ? item.created_at.slice(0,10) : null],
+  );
+
+  document.getElementById('dp-fields').innerHTML = fields.map(([l,v]) => `
+    <div class="field">
+      <div class="field-lbl">${l}</div>
+      <div class="field-val ${v?'':'empty'}">${v ? esc(String(v)) : 'Not set'}</div>
+    </div>`).join('');
+
+  // Notes
+  const noteSec = document.getElementById('dp-notes-section');
+  if (item.notes) {
+    noteSec.style.display='';
+    document.getElementById('dp-notes-val').textContent = item.notes;
+  } else {
+    noteSec.style.display='none';
+  }
+
+  // Tags
+  const tagSec = document.getElementById('dp-tags-section');
+  if (item.tags) {
+    tagSec.style.display='';
+    document.getElementById('dp-tags-val').innerHTML = item.tags.split(',')
+      .map(t=>t.trim()).filter(Boolean)
+      .map(t=>`<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:var(--s3);color:var(--muted2);border:1px solid var(--border2)">${esc(t)}</span>`)
+      .join('');
+  } else {
+    tagSec.style.display='none';
+  }
+}
+
+// ── Editing (inline in detail panel) ──────────────
+function startEdit() {
+  const item = allItems.find(i => i.id === selectedId);
+  if (!item) return;
+  editingId = item.id;
+  setEditType(item.type);
+
+  document.getElementById('ef-name').value    = item.name||'';
+  document.getElementById('ef-cat').value     = item.category||'';
+  document.getElementById('ef-loc').value     = item.location||'';
+  document.getElementById('ef-tags').value    = item.tags||'';
+  document.getElementById('ef-notes').value   = item.notes||'';
+  if (item.type==='part') {
+    document.getElementById('ef-qty').value     = item.quantity??'';
+    document.getElementById('ef-unit').value    = item.unit||'pcs';
+    document.getElementById('ef-reorder').value = item.reorder_qty??'';
+  } else {
+    document.getElementById('ef-cond').value    = item.condition_state||'good';
+    document.getElementById('ef-service').value = item.last_service||'';
+  }
+
+  document.getElementById('dp-body').classList.add('editing');
+  document.getElementById('dp-edit-form').classList.add('open');
+  document.getElementById('dp-edit-btn').style.display   = 'none';
+  document.getElementById('dp-save-btn').style.display   = '';
+  document.getElementById('dp-cancel-btn').style.display = '';
+  document.getElementById('ef-name').focus();
+}
+
+function cancelEdit() {
+  editingId = null;
+  document.getElementById('dp-body').classList.remove('editing');
+  document.getElementById('dp-edit-form').classList.remove('open');
+  document.getElementById('dp-edit-btn').style.display   = '';
+  document.getElementById('dp-save-btn').style.display   = 'none';
+  document.getElementById('dp-cancel-btn').style.display = 'none';
+}
+
+function setEditType(t) {
+  editType = t;
+  document.getElementById('et-tool').classList.toggle('active', t==='tool');
+  document.getElementById('et-part').classList.toggle('active', t==='part');
+  document.getElementById('et-tool').className = `tt-opt tool ${t==='tool'?'active':''}`;
+  document.getElementById('et-part').className = `tt-opt part ${t==='part'?'active':''}`;
+  document.getElementById('ef-part-fields').style.display = t==='part'?'':'none';
+  document.getElementById('ef-tool-fields').style.display = t==='tool'?'':'none';
+}
+
+async function saveEdit() {
+  const name = document.getElementById('ef-name').value.trim();
+  if (!name) { alert('Name is required'); return; }
+  const qtyRaw    = document.getElementById('ef-qty').value;
+  const reorderRaw= document.getElementById('ef-reorder').value;
+  const body = {
+    type: editType, name,
+    category:        document.getElementById('ef-cat').value.trim(),
+    location:        document.getElementById('ef-loc').value.trim(),
+    tags:            document.getElementById('ef-tags').value.trim(),
+    notes:           document.getElementById('ef-notes').value.trim(),
+    unit:            document.getElementById('ef-unit').value||'pcs',
+    condition_state: document.getElementById('ef-cond').value||'good',
+    last_service:    document.getElementById('ef-service').value||'',
+    quantity:        qtyRaw!==''    ? parseFloat(qtyRaw)    : null,
+    reorder_qty:     reorderRaw!=='' ? parseFloat(reorderRaw): null,
+  };
+  const isNew = editingId === -1;
+  const url   = isNew ? '/api/inventory/items' : `/api/inventory/items/${editingId}`;
+  const method= isNew ? 'POST' : 'PUT';
+  const res   = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const saved = await res.json();
+  cancelEdit();
+  await loadAll();
+  if (saved.id) selectItem(saved.id);
+}
+
+function openAdd() {
+  editingId  = -1;
+  selectedId = null;
+  setEditType('tool');
+  document.getElementById('ef-name').value=''; document.getElementById('ef-cat').value='';
+  document.getElementById('ef-loc').value=''; document.getElementById('ef-tags').value='';
+  document.getElementById('ef-notes').value=''; document.getElementById('ef-qty').value='';
+  document.getElementById('ef-reorder').value=''; document.getElementById('ef-service').value='';
+  document.getElementById('ef-cond').value='good'; document.getElementById('ef-unit').value='pcs';
+  document.getElementById('dp-name').textContent='New Item';
+  document.getElementById('dp-badges').innerHTML='';
+  document.getElementById('dp-qty-adj').style.display='none';
+  document.getElementById('dp-fields').innerHTML='';
+  document.getElementById('dp-notes-section').style.display='none';
+  document.getElementById('dp-tags-section').style.display='none';
+  document.getElementById('dp-body').classList.add('editing');
+  document.getElementById('dp-edit-form').classList.add('open');
+  document.getElementById('dp-edit-btn').style.display   = 'none';
+  document.getElementById('dp-save-btn').style.display   = '';
+  document.getElementById('dp-cancel-btn').style.display = '';
+  document.getElementById('detail-panel').classList.add('open');
+  renderTable();
+  setTimeout(()=>document.getElementById('ef-name').focus(),80);
+}
+
+// ── Quantity ───────────────────────────────────────
+async function adjustRow(id, delta) {
+  await fetch(`/api/inventory/items/${id}/adjust`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({delta})
+  });
+  await loadAll();
+}
+
+async function adjustDetail(delta) {
+  if (!selectedId) return;
+  await adjustRow(selectedId, delta);
+  const item = allItems.find(i=>i.id===selectedId);
+  if (item) renderDetail(item);
+}
+
+// ── Delete ─────────────────────────────────────────
+async function deleteRow(id) {
+  if (!confirm('Delete this item?')) return;
+  await fetch(`/api/inventory/items/${id}`, {method:'DELETE'});
+  if (selectedId===id) closeDetail();
+  await loadAll();
+}
+
+async function deleteSelected() {
+  if (selectedId==null) return;
+  await deleteRow(selectedId);
+}
+
+// ── Export ─────────────────────────────────────────
+function exportCSV() { window.location='/api/inventory/export.csv' }
+
+// ── AI Drawer ──────────────────────────────────────
+let aiOpen=false;
+function toggleAI() {
+  aiOpen=!aiOpen;
+  document.getElementById('ai-drawer').classList.toggle('open', aiOpen);
+}
+
+function quickAsk(q) {
+  if (!aiOpen) toggleAI();
+  appendAI('user', q);
+  chatHistory.push({role:'user',content:q});
+  streamAI();
+}
+
+async function analyzeInventory() {
+  if (!aiOpen) toggleAI();
+  const tools = allItems.filter(i=>i.type==='tool');
+  const parts = allItems.filter(i=>i.type==='part');
+  const low   = parts.filter(i=>i.reorder_qty!=null&&i.quantity!=null&&i.quantity<=i.reorder_qty);
+  const repair= tools.filter(i=>i.condition_state==='needs_repair');
+  let summary = `Current inventory: ${tools.length} tools, ${parts.length} parts.`;
+  if (tools.length)  summary += ` Tools: ${tools.map(i=>i.name).join(', ')}.`;
+  if (parts.length)  summary += ` Parts (with qty): ${parts.map(i=>`${i.name}=${i.quantity??'?'} ${i.unit||'pcs'}`).join(', ')}.`;
+  if (low.length)    summary += ` LOW STOCK: ${low.map(i=>i.name).join(', ')}.`;
+  if (repair.length) summary += ` NEEDS REPAIR: ${repair.map(i=>i.name).join(', ')}.`;
+  const q = `Analyze my workshop inventory and give me a practical assessment. ${summary} What are the most important gaps? What should I prioritize?`;
+  appendAI('user','Analyze my inventory'); chatHistory.push({role:'user',content:q}); streamAI();
+}
+
+function onAIKey(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendAI()} }
+function sendAI() {
+  const inp=document.getElementById('ai-input');
+  const txt=inp.value.trim();
+  if(!txt||aiStreaming) return;
+  inp.value='';
+  appendAI('user',txt);
+  chatHistory.push({role:'user',content:txt});
+  streamAI();
+}
+
+function buildAISysPrompt() {
+  const tools = allItems.filter(i=>i.type==='tool');
+  const parts = allItems.filter(i=>i.type==='part');
+  const low   = parts.filter(i=>i.reorder_qty!=null&&i.quantity!=null&&i.quantity<=i.reorder_qty);
+  return `You are Inventory AI — an expert workshop assistant. The user runs a maker/OSE workshop.
+
+CURRENT INVENTORY:
+Tools (${tools.length}): ${tools.map(i=>`${i.name}${i.condition_state!=='good'?' ['+i.condition_state+']':''}`).join(', ')||'none'}
+Parts (${parts.length}): ${parts.map(i=>`${i.name}: ${i.quantity??'?'} ${i.unit||'pcs'}${i.reorder_qty!=null&&i.quantity!=null&&i.quantity<=i.reorder_qty?' ⚠LOW':''}`).join(', ')||'none'}
+${low.length ? `\nLOW STOCK ALERTS: ${low.map(i=>i.name).join(', ')}` : ''}
+
+Help with OSE machine builds (LifeTrac, CEB Press, Power Cube, Sawmill, Ironworker), parts specs, tool maintenance, and workshop organization. Be concise and practical.`;
+}
+
+async function streamAI() {
+  if(aiStreaming) return;
+  aiStreaming=true;
+  document.getElementById('ai-send').disabled=true;
+  const msgEl=appendAI('assistant','');
+  let full='';
+  try {
+    const resp=await fetch('/api/chat',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({messages:chatHistory,system_prompt:buildAISysPrompt()})
+    });
+    if(!resp.ok){
+      const err=await resp.json().catch(()=>({}));
+      throw new Error(err.error||`Server error ${resp.status}`);
+    }
+    const reader=resp.body.getReader(); const dec=new TextDecoder();
+    while(true){
+      const {done,value}=await reader.read(); if(done)break;
+      for(const line of dec.decode(value).split('\n')){
+        if(!line.startsWith('data: '))continue;
+        const d=line.slice(6); if(d==='[DONE]')break;
+        try{const j=JSON.parse(d);if(j.text){full+=j.text;msgEl.innerHTML=mdToHtml(full)}}catch(_){}
+      }
+      document.getElementById('ai-msgs').scrollTop=9999;
+    }
+    if(full) chatHistory.push({role:'assistant',content:full});
+  } catch(e) {
+    msgEl.innerHTML=`<em style="color:var(--red)">⚠ ${e.message||'AI unavailable — is Ollama running?'}</em>`;
+  } finally {
+    aiStreaming=false;
+    document.getElementById('ai-send').disabled=false;
+  }
+}
+
+function appendAI(role,content){
+  const div=document.createElement('div');
+  div.className=`ai-msg ${role}`;
+  div.innerHTML=role==='user'?esc(content):mdToHtml(content);
+  document.getElementById('ai-msgs').appendChild(div);
+  document.getElementById('ai-msgs').scrollTop=9999;
+  return div;
+}
+
+function mdToHtml(t){
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*([^*\n]+)\*/g,'<em>$1</em>')
+    .replace(/`([^`\n]+)`/g,'<code>$1</code>')
+    .replace(/^#{1,3} (.+)$/gm,'<strong>$1</strong>')
+    .replace(/^[-*] (.+)$/gm,'<li>$1</li>')
+    .replace(/(<li>[\s\S]*?<\/li>)/g,'<ul>$1</ul>')
+    .replace(/\n{2,}/g,'<br><br>').replace(/\n/g,' ');
+}
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+</script>
+</body>
+</html>
