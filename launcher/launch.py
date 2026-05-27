@@ -84,7 +84,8 @@ SERVICES = [
 ]
 
 _procs: list = []
-_restart_counts: dict = {}  # service name → consecutive crash count
+_restart_counts: dict = {}   # service name → consecutive crash count
+_start_times:   dict = {}    # service name → last start timestamp
 
 
 def _start_service(svc: dict) -> subprocess.Popen:
@@ -201,7 +202,12 @@ def main():
         for i, proc in enumerate(_procs):
             ret = proc.poll()
             if ret is not None:
-                svc   = SERVICES[i]
+                svc  = SERVICES[i]
+                name = svc["name"]
+                # Reset backoff if the service ran stably for > 60 s before crashing
+                uptime = time.time() - _start_times.get(name, 0)
+                if uptime > 60:
+                    _restart_counts[name] = 0
                 count = _restart_counts.get(svc["name"], 0)
                 delay = min(5 * (2 ** count), 60)  # 5 → 10 → 20 → 40 → 60s cap
                 _restart_counts[svc["name"]] = count + 1
@@ -209,6 +215,8 @@ def main():
                 time.sleep(delay)
                 new_proc = _start_service(svc)
                 _procs[i] = new_proc
+                _start_times[svc["name"]] = time.time()
+
                 t = threading.Thread(
                     target=_log_service, args=(svc["name"], new_proc), daemon=True
                 )

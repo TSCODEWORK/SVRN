@@ -176,12 +176,19 @@ fi
 echo "▶ Building installer package (.pkg)…"
 PKG_PATH="$BUILD_DIR/SVRN-${SVRN_VERSION}.pkg"
 
+# Stage the .app inside a temporary folder so pkgbuild installs the bundle
+# itself into /Applications — not the bundle's *contents*.
+PKG_STAGE="$BUILD_DIR/pkg_stage"
+rm -rf "$PKG_STAGE" && mkdir -p "$PKG_STAGE"
+cp -r "$APP_DIR" "$PKG_STAGE/"
+
 pkgbuild \
-    --root "$APP_DIR" \
-    --install-location "/Applications/SVRN.app" \
+    --root "$PKG_STAGE" \
+    --install-location "/Applications" \
     --identifier "com.tscodework.svrn" \
     --version "$SVRN_VERSION" \
     "$PKG_PATH"
+rm -rf "$PKG_STAGE"
 
 echo "  pkg: $PKG_PATH"
 du -sh "$PKG_PATH" | awk '{print "  Size: " $1}'

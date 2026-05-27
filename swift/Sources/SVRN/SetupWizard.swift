@@ -158,6 +158,9 @@ final class SetupViewModel: ObservableObject {
                     guard let self else { return }
                     self.isWorking = false
                     self.step      = 4
+                    // Call onComplete immediately — don't require button click.
+                    // The DoneStep button also calls it but is a no-op on second call.
+                    self.onComplete()
                 }
             } catch {
                 await MainActor.run { [weak self] in

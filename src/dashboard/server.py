@@ -1467,7 +1467,7 @@ def ose_get_article(name: str) -> dict:
     content = html_file.read_text(encoding='utf-8', errors='replace')
     title   = decoded.replace('_', ' ').split('/')[-1]
 
-    m = _re.search(r'<h1[^>]*>(?:<[^>]+>)*([^<]+)', content)
+    m = re.search(r'<h1[^>]*>(?:<[^>]+>)*([^<]+)', content)
     if m:
         raw = m.group(1).strip()
         if '/' in raw:
@@ -1475,23 +1475,23 @@ def ose_get_article(name: str) -> dict:
         if raw:
             title = raw
     elif '/' not in decoded:
-        m = _re.search(r'<title>([^<]+?)\s*[-–]', content)
+        m = re.search(r'<title>([^<]+?)\s*[-–]', content)
         if m:
             title = m.group(1).strip()
 
-    m    = _re.search(r'<div[^>]+id="mw-content-text"[^>]*>(.*)', content, _re.DOTALL)
+    m    = re.search(r'<div[^>]+id="mw-content-text"[^>]*>(.*)', content, re.DOTALL)
     body = m.group(1) if m else content
 
-    body = _re.sub(r'<div class="lang">.*?</div>\s*', '', body, flags=_re.DOTALL)
-    body = _re.sub(r'<a[^>]+class="new"[^>]*>.*?</a>', '', body, flags=_re.DOTALL)
-    body = _re.sub(r'<li>\s*</li>', '', body)
-    body = _re.sub(r'<ul>\s*</ul>|<ol>\s*</ol>', '', body)
-    body = _re.sub(r'src="/images/', 'src="/ose-wiki/images/', body)
+    body = re.sub(r'<div class="lang">.*?</div>\s*', '', body, flags=re.DOTALL)
+    body = re.sub(r'<a[^>]+class="new"[^>]*>.*?</a>', '', body, flags=re.DOTALL)
+    body = re.sub(r'<li>\s*</li>', '', body)
+    body = re.sub(r'<ul>\s*</ul>|<ol>\s*</ol>', '', body)
+    body = re.sub(r'src="/images/', 'src="/ose-wiki/images/', body)
 
     def _rewrite_srcset(m):
-        val = _re.sub(r'(/images/)', '/ose-wiki/images/', m.group(1))
+        val = re.sub(r'(/images/)', '/ose-wiki/images/', m.group(1))
         return f'srcset="{val}"'
-    body = _re.sub(r'srcset="([^"]+)"', _rewrite_srcset, body)
+    body = re.sub(r'srcset="([^"]+)"', _rewrite_srcset, body)
 
     def _rewrite_link(mm):
         article = mm.group(1)
@@ -1503,8 +1503,8 @@ def ose_get_article(name: str) -> dict:
             pass
         return f'href="javascript:void(0)" data-article="{article}"'
 
-    body = _re.sub(r'href="/wiki/([^"]+)"', _rewrite_link, body)
-    body = _re.sub(r'href="/index\.php[^"]*"', 'href="javascript:void(0)"', body)
+    body = re.sub(r'href="/wiki/([^"]+)"', _rewrite_link, body)
+    body = re.sub(r'href="/index\.php[^"]*"', 'href="javascript:void(0)"', body)
 
     return {"title": title, "html": body, "name": name}
 

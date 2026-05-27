@@ -110,8 +110,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         guard setupWindowController?.window === notification.object as? NSWindow else { return }
-        // If setup was closed before completion and we have no menubar, quit cleanly
-        if menubarController == nil {
+        // If setup window closed without completing setup, quit cleanly.
+        // Use Config.isFirstRun rather than menubarController == nil so a
+        // completed-but-not-yet-started state doesn't produce a false quit.
+        if Config.isFirstRun {
             NSApp.terminate(nil)
         }
     }

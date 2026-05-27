@@ -9,24 +9,33 @@ Portable, self-contained offline knowledge & AI app for macOS. Double-click to i
 ## Key File Map
 
 ```
+swift/Sources/SVRN/         ← Native Swift app (412 KB binary, replaces rumps)
+  main.swift                  entry point
+  AppDelegate.swift           first-run vs. normal launch coordinator
+  Config.swift                reads ~/.config/svrn/config.json + ports.json
+  ServiceManager.swift        launches + monitors Python subprocesses
+  MenubarController.swift     NSStatusBar icon + native menu + 12s polling
+  SetupWizard.swift           SwiftUI multi-step first-run setup window
+
 src/
   config/__init__.py        ← SINGLE SOURCE OF TRUTH for all paths and ports
   dashboard/server.py       ← Main HTTP server (Flask-like, stdlib only)
   dashboard/*.html          ← All UI pages (chat, library, maps, notes, reader…)
   dashboard/static/         ← Bundled JS/CSS — zero CDN dependencies
   kiwix/server.py           ← ZIM file server (libzim)
-  menubar/app.py            ← macOS status bar app (rumps)
 
 scripts/
-  build_app.sh              ← Produces SVRN.app, .pkg, .dmg
+  build_app.sh              ← swift build → .app bundle → .pkg + .dmg
   dev.sh                    ← Local dev: starts dashboard + kiwix, opens browser
-  launch.py                 ← Entry point inside the .app bundle
 
-installer/                  ← DMG/PKG build assets
-launcher/                   ← App bundle shell launcher
+installer/
+  Info.plist                ← Bundle metadata (LSUIElement=YES for menubar app)
 
-assets/                     ← Icons, Info.plist
-requirements.txt            ← libzim, rumps (only external deps)
+launcher/
+  launch.py                 ← Python service launcher (called by Swift binary)
+
+assets/                     ← Icons
+requirements.txt            ← libzim only (rumps removed — Swift handles menubar)
 PROJECT_SPEC.md             ← Full architecture decisions and rationale
 ```
 
@@ -52,7 +61,7 @@ PROJECT_SPEC.md             ← Full architecture decisions and rationale
 ## Dev Workflow
 
 ```bash
-pip install libzim rumps          # one-time
+pip install libzim                # one-time (rumps no longer needed)
 bash scripts/dev.sh               # starts dashboard + kiwix, opens browser
 ```
 
