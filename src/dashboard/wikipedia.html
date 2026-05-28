@@ -624,7 +624,7 @@ function onSearch(e) {
   currentZimLabel = 'Wikipedia';
   const frame = document.getElementById('wiki-frame');
   // Wikipedia ZIM search URL pattern
-  frame.src = `http://localhost:8888/search?content=${zim}&pattern=${encodeURIComponent(q)}`;
+  frame.src = `/zim-proxy/search?content=${zim}&pattern=${encodeURIComponent(q)}`;
   currentArticlePath = '';  // reset — search page, not an article
   showReader('Wikipedia');
   e.target.value = '';

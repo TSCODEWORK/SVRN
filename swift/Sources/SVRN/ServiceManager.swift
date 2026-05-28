@@ -50,9 +50,23 @@ final class ServiceManager {
             env["PYTHONPATH"] = resourcesPath.appendingPathComponent("src").path
             return env
         }()
-        // Discard output — logs are visible if launched from Terminal
-        proc.standardOutput = FileHandle.nullDevice
-        proc.standardError  = FileHandle.nullDevice
+        // Redirect output to per-service log files in ~/.config/svrn/logs/
+        // This lets users (and support) diagnose startup failures on a fresh machine.
+        let logsDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/svrn/logs")
+        try? FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
+        let logFile = logsDir.appendingPathComponent("\(services[index].name).log")
+        if FileManager.default.createFile(atPath: logFile.path, contents: nil) == false {
+            _ = try? Data().write(to: logFile)  // ensure file exists
+        }
+        if let fh = try? FileHandle(forWritingTo: logFile) {
+            fh.seekToEndOfFile()
+            proc.standardOutput = fh
+            proc.standardError  = fh
+        } else {
+            proc.standardOutput = FileHandle.nullDevice
+            proc.standardError  = FileHandle.nullDevice
+        }
 
         do {
             try proc.run()

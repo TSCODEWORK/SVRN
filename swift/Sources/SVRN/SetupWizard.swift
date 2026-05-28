@@ -146,7 +146,7 @@ final class SetupViewModel: ObservableObject {
             do {
                 let url = URL(fileURLWithPath: raw)
                 let fm  = FileManager.default
-                for sub in ["zims", "maps", "notes", "chat"] {
+                for sub in ["zim", "maps", "notes", "chat"] {
                     try fm.createDirectory(
                         at: url.appendingPathComponent(sub),
                         withIntermediateDirectories: true

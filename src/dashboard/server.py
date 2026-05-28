@@ -348,6 +348,15 @@ def pins_get(pin_id: int) -> dict:
 
 
 def pins_create(data: dict) -> dict:
+    lat = data.get("lat")
+    lng = data.get("lng")
+    if lat is None or lng is None:
+        raise ValueError("lat and lng are required")
+    try:
+        lat = float(lat)
+        lng = float(lng)
+    except (TypeError, ValueError):
+        raise ValueError(f"lat and lng must be numeric, got lat={lat!r} lng={lng!r}")
     now = time.strftime("%Y-%m-%dT%H:%M:%S")
     con = _pins_conn()
     cur = con.execute(
@@ -356,8 +365,8 @@ def pins_create(data: dict) -> dict:
         (
             data.get("name", "Pin"),
             data.get("notes", ""),
-            float(data["lat"]),
-            float(data["lng"]),
+            lat,
+            lng,
             data.get("color", "#e74c3c"),
             data.get("zoom"),
             float(data.get("bearing", 0)),
@@ -1067,24 +1076,49 @@ def extract_file_text(data: bytes, filename: str, mime_type: str = "") -> str:
         except Exception:
             return ""
     if fname.endswith(".pdf") or "pdf" in mime_type:
+        # Use macOS qlmanage (Quick Look) to extract PDF text — available on all Macs,
+        # no extra dependencies. textutil does NOT support PDF input.
         try:
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
                 tmp.write(data)
                 tmp_path = tmp.name
-            out_path = tmp_path.replace(".pdf", ".txt")
-            subprocess.run(
-                ["textutil", "-convert", "txt", "-output", out_path, tmp_path],
+            result = subprocess.run(
+                ["qlmanage", "-p", tmp_path, "-o", "/dev/null"],
                 capture_output=True, timeout=15,
             )
             os.unlink(tmp_path)
-            if os.path.exists(out_path):
-                with open(out_path) as f:
-                    text = f.read()
-                os.unlink(out_path)
+            # qlmanage writes plain text to stdout for text-based PDFs
+            text = result.stdout.decode("utf-8", errors="replace").strip()
+            if text:
                 return text[:8000]
         except Exception:
             _log.warning("PDF text extraction failed for %s", fname, exc_info=True)
-        return "[PDF content could not be extracted]"
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+        # Fallback: try mdimport for Spotlight-indexed text
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                tmp.write(data)
+                tmp_path = tmp.name
+            result = subprocess.run(
+                ["mdimport", "-d2", tmp_path],
+                capture_output=True, timeout=15,
+            )
+            os.unlink(tmp_path)
+            text = result.stderr.decode("utf-8", errors="replace")
+            if "kMDItemTextContent" in text:
+                start = text.find("kMDItemTextContent") + len("kMDItemTextContent")
+                snippet = text[start:start + 8000].strip(" ='\n")
+                if snippet:
+                    return snippet[:8000]
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+        return "[PDF text could not be extracted — open the file directly to read it]"
     if fname.endswith((".jpg",".jpeg",".png",".gif",".webp",".bmp")):
         return f"[IMAGE:{base64.b64encode(data).decode()}]"
     try:
@@ -1402,7 +1436,7 @@ CONTENT_CATALOG = {
         "desc": "US military medical manuals — field care, trauma, and triage.",
         "category": "Survival", "icon": "🏥", "size_gb": 0.08,
         "url": "https://download.kiwix.org/zim/zimit/irp.fas.org_en_military-medicine_2026-05.zim",
-        "filename": "fas-military-medicine_en_2025-06.zim", "dest_subdir": "Survival",
+        "filename": "irp.fas.org_en_military-medicine_2026-05.zim", "dest_subdir": "Survival",
     },
 }
 
@@ -2213,15 +2247,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
         else:
-            with open(filepath, "rb") as f:
-                data = f.read()
+            # Stream full file in 1 MB chunks — never read entire PMTiles into RAM
             self.send_response(200)
             self.send_header("Content-Type",   "application/octet-stream")
-            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Content-Length", str(file_size))
             self.send_header("Accept-Ranges",  "bytes")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
-            self.wfile.write(data)
+            _CHUNK = 1 << 20  # 1 MB
+            with open(filepath, "rb") as f:
+                while True:
+                    chunk = f.read(_CHUNK)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
 
     def do_PUT(self):
         clean_path = urllib.parse.urlparse(self.path).path

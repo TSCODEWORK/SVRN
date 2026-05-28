@@ -16,23 +16,25 @@ Store it on an external drive. Plug into any Mac. Click open. It works.
 
 | Feature | Notes |
 |---------|-------|
-| **AI Chat** | Streaming markdown, session history, file/image drag-drop, library RAG |
-| **Offline Library** | ZIM reader (Wikipedia, medical, cooking, books, 50+ collections) |
+| **AI Chat** | Streaming markdown, session history, file/image drag-drop |
+| **Offline Library** | ZIM reader (Wikipedia, medical, education, books, 50+ collections) |
 | **Split Reader** | Article + AI side-by-side, article-aware AI context |
-| **Offline Maps** | MapLibre GL + PMTiles, fully local fonts |
-| **Notes** | Local markdown notes |
+| **Offline Maps** | MapLibre GL + PMTiles — drop pins, measure distances, save places |
+| **Notes** | Local markdown notes with live preview |
 | **Code Assistant** | Syntax highlighting, AI-powered |
 | **Data Tools** | CyberChef (bundled) |
 | **OSE Wiki** | Open Source Ecology wiki mirror |
-| **System Dashboard** | Service status, storage info |
-| **Library Manager** | Download ZIM files, Ollama models, maps |
+| **Inventory** | Track parts, supplies, and equipment locally |
+| **Library Manager** | Download ZIM files, Ollama models, and maps |
 
 ## Install
 
-1. Download `SVRN-1.0.0.dmg`
+> **macOS Gatekeeper note:** SVRN is not notarized. After opening the DMG, right-click SVRN → Open → Open to launch it the first time.
+
+1. Download `SVRN-1.0.0.dmg` from the [latest release](https://github.com/TSCODEWORK/SVRN/releases/latest)
 2. Open the DMG → drag SVRN to Applications
-3. Double-click SVRN — the Setup Wizard opens on first launch
-4. Choose a storage folder, detect Ollama, pick starter content
+3. Right-click SVRN → **Open** → **Open** (first launch only, bypasses Gatekeeper)
+4. The Setup Wizard opens — choose a storage folder and detect Ollama
 
 ## Build from source
 
@@ -55,7 +57,7 @@ bash scripts/build_app.sh --no-python
 ## Development
 
 ```bash
-pip install libzim rumps          # one-time
+pip install libzim                # one-time (rumps not needed — Swift handles menubar)
 bash scripts/dev.sh               # starts dashboard + kiwix, opens browser
 ```
 

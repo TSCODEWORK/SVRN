@@ -137,11 +137,9 @@ const CONTENT = {
 </ul>
 <h3>What's Running</h3>
 <ul>
-  <li><strong>Dashboard</strong> (port 3333) — This control center. System stats, vault info, app launcher.</li>
-  <li><strong>Wikipedia/Kiwix</strong> (port 8888) — Offline ZIM library server. Millions of articles.</li>
+  <li><strong>Dashboard</strong> (dynamic port, default 3333) — This control center. System stats, vault info, app launcher.</li>
+  <li><strong>Kiwix</strong> (dynamic port, default 8888) — Offline ZIM library server. Millions of articles.</li>
   <li><strong>Ollama</strong> (port 11434) — Local AI inference. Chat with LLMs on your own hardware.</li>
-  <li><strong>Open WebUI</strong> (port 8080) — Full-featured frontend for Ollama with history and docs.</li>
-  <li><strong>OSE Wiki</strong> (port 8890) — Open Source Ecology blueprints for self-sufficiency.</li>
 </ul>`,
   },
   vault: {
@@ -167,16 +165,15 @@ const CONTENT = {
     body: `
 <p>Each service is a long-running process managed by macOS <strong>launchd</strong>. They start automatically at login and restart if they crash.</p>
 <h3>Service Ports</h3>
-<pre>Dashboard    →  http://localhost:3333
-Wikipedia    →  http://localhost:8888
-Open WebUI   →  http://localhost:8080
-OSE Wiki     →  http://localhost:8890
-Ollama       →  http://localhost:11434</pre>
+<pre>Dashboard  →  http://localhost:&lt;port&gt;  (see ~/.config/svrn/ports.json)
+Kiwix      →  http://localhost:&lt;port&gt;  (dynamic, default 8888)
+Ollama     →  http://localhost:11434</pre>
+<p>Ports are dynamic — chosen at startup and written to <code>~/.config/svrn/ports.json</code>. SVRN is managed by a native Swift menubar app, not launchd.</p>
 <h3>Starting / Stopping</h3>
-<pre>launchctl load   ~/Library/LaunchAgents/com.sovereign.dashboard.plist
-launchctl unload ~/Library/LaunchAgents/com.sovereign.dashboard.plist</pre>
+<p>Use the SVRN menubar icon → <strong>Restart Services</strong>, or quit and relaunch the app.</p>
 <h3>Viewing Logs</h3>
-<pre>tail -f /tmp/sovereign_dashboard.log
+<pre>cat ~/.config/svrn/logs/dashboard.log
+cat ~/.config/svrn/logs/kiwix.log
 tail -f /tmp/sovereign_dashboard_err.log
 tail -f /tmp/sovereign_kiwix.log</pre>
 <h3>Power Management</h3>
@@ -318,14 +315,16 @@ ollama run llama3.2</pre>
     body: `
 <p>All SVRN services are managed by macOS <strong>launchd</strong> via plist files in <code>~/Library/LaunchAgents/</code>.</p>
 <h3>Plist Files</h3>
-<pre>~/Library/LaunchAgents/
-├── com.sovereign.dashboard.plist   ← Port 3333
-├── com.sovereign.kiwix.plist       ← Port 8888
-└── com.sovereign.tileserver.plist  ← (optional)</pre>
+<pre>~/.config/svrn/
+├── config.json      ← Storage root, Ollama path
+├── ports.json       ← Active service ports
+└── logs/
+    ├── dashboard.log
+    └── kiwix.log</pre>
 <h3>Common Commands</h3>
-<pre># Reload a service after changing its plist
-launchctl unload ~/Library/LaunchAgents/com.sovereign.dashboard.plist
-launchctl load   ~/Library/LaunchAgents/com.sovereign.dashboard.plist
+<p>SVRN services are managed by the Swift menubar app. To restart:</p>
+<pre># From the menubar icon → Restart Services
+# Or force-quit SVRN.app from Activity Monitor and relaunch
 
 # Check if running
 launchctl list | grep sovereign
@@ -355,14 +354,13 @@ tail -f /tmp/sovereign_kiwix.log</pre>
     title: 'Quick Reference',
     body: `
 <h3>Ports</h3>
-<pre>3333   Dashboard (this page)
-8080   Open WebUI (Ollama frontend)
-8888   Wikipedia / Kiwix
-8890   OSE Wiki
+<pre>3333+  Dashboard (dynamic — see ~/.config/svrn/ports.json)
+8888+  Kiwix (dynamic — see ~/.config/svrn/ports.json)
 11434  Ollama API</pre>
 <h3>Key Paths</h3>
-<pre>~/.sovereign/             Config & local data
-~/.sovereign/notes/       Notes storage
+<pre>~/.config/svrn/           Config & runtime data
+~/.config/svrn/ports.json Active service ports
+~/.config/svrn/logs/      Service logs
 ~/.sovereign/settings.json Settings
 /Volumes/your storage drive/      External vault
 /Volumes/your storage drive/maps/ Offline maps (.pmtiles)
@@ -376,7 +374,7 @@ launchctl load   ~/Library/LaunchAgents/com.sovereign.dashboard.plist
 curl http://localhost:8888/reload
 
 # Check all services
-curl http://localhost:3333/api/services | python3 -m json.tool</pre>
+curl http://localhost:$(cat ~/.config/svrn/ports.json | python3 -c "import sys,json; print(json.load(sys.stdin).get('dashboard',3333))")/api/services | python3 -m json.tool</pre>
 <h3>Map Commands</h3>
 <pre># Extract a map region manually
 pmtiles extract https://build.protomaps.com/20251201.pmtiles \\

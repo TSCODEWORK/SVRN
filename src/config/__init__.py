@@ -89,7 +89,7 @@ def zim_dirs(root: Path | None = None) -> list[Path]:
         return []
     dirs = [r / "zim"]
     # Legacy sub-directory names carried over from sovereign
-    for sub in ("Wikipedia", "Medical", "Education", "Books", "kiwix"):
+    for sub in ("Wikipedia", "Medical", "Education", "Books", "kiwix", "Survival"):
         dirs.append(r / sub)
     return [d for d in dirs if d.exists()]
 
@@ -117,7 +117,7 @@ _OLLAMA_CANDIDATES = [
     Path("/usr/local/bin/ollama"),                                    # Intel Homebrew
     Path("/opt/homebrew/bin/ollama"),                                  # Apple Silicon Homebrew
     HOME / ".ollama" / "bin" / "ollama",                              # Direct install
-    Path("/Applications/Ollama.app/Contents/MacOS/Ollama"),           # App bundle
+    Path("/Applications/Ollama.app/Contents/Resources/ollama"),        # App bundle
 ]
 
 

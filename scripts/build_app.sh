@@ -109,7 +109,7 @@ else
     else
         echo "▶ Downloading Python ${PYTHON_VERSION} (${ARCH})…"
         echo "  URL: $PBS_URL"
-        curl -L --progress-bar -o "$CACHED_TGZ" "$PBS_URL"
+        curl -L --fail --progress-bar -o "$CACHED_TGZ" "$PBS_URL" || { echo "ERROR: Python download failed (check PBS_DATE/PBS_URL)"; exit 1; }
     fi
 
     echo "▶ Extracting Python runtime…"
@@ -122,6 +122,7 @@ else
         EXTRACTED_PYTHON="$PYTHON_CACHE/extracted/python"
     fi
 
+    rm -rf "$PYTHON_CACHE/python"   # prevent nested python/python/ on repeat builds
     cp -r "$EXTRACTED_PYTHON" "$PYTHON_CACHE/python"
     cp -r "$PYTHON_CACHE/python" "$RESOURCES/python"
 
