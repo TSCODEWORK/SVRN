@@ -13,6 +13,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Menubar-only app — no Dock icon, no app menu
         NSApp.setActivationPolicy(.accessory)
 
+        // Single-instance guard: LSUIElement apps give no Dock feedback, so a
+        // confused user re-launching (double-click, Spotlight, etc.) is common.
+        // Without this check, each launch spawns its own dashboard+kiwix pair,
+        // and they exhaust the 3-port fallback range until later instances
+        // crash-loop forever. If another instance is already running, bail out.
+        if isAnotherInstanceRunning() {
+            NSLog("[SVRN] Another instance is already running — exiting.")
+            NSApp.terminate(nil)
+            return
+        }
+
         let resources = resolveResourcesPath()
         serviceManager = ServiceManager(resourcesPath: resources)
 
@@ -25,6 +36,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         serviceManager?.stopAll()
+    }
+
+    /// True if another process with our bundle identifier is already running.
+    private func isAnotherInstanceRunning() -> Bool {
+        guard let bundleId = Bundle.main.bundleIdentifier else { return false }
+        let myPID = ProcessInfo.processInfo.processIdentifier
+        let running = NSWorkspace.shared.runningApplications.filter {
+            $0.bundleIdentifier == bundleId && $0.processIdentifier != myPID
+        }
+        return !running.isEmpty
     }
 
     // ── Resource path resolution ──────────────────────────────────────────────
