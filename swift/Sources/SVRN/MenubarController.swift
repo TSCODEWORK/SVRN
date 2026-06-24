@@ -48,8 +48,19 @@ final class MenubarController {
         menu.addItem(quit)
 
         statusItem.menu   = menu
-        statusItem.button?.title = "◉"
-        statusItem.button?.font  = NSFont.systemFont(ofSize: 14)
+        applyScopeIcon(tint: nil)
+    }
+
+    /// Renders the menu bar glyph as a rifle-scope reticle (circle + crosshair
+    /// ticks) using the SF Symbol "scope". `tint` recolors it to signal health
+    /// without changing its shape — nil keeps the default template color.
+    private func applyScopeIcon(tint: NSColor?) {
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+        let image  = NSImage(systemSymbolName: "scope", accessibilityDescription: "SVRN")?
+            .withSymbolConfiguration(config)
+        image?.isTemplate = (tint == nil)
+        statusItem.button?.image = image
+        statusItem.button?.contentTintColor = tint
     }
 
     private func makeItem(_ title: String, selector: Selector) -> NSMenuItem {
@@ -118,11 +129,14 @@ final class MenubarController {
                 storageText = "💾  No storage configured"
             }
 
-            let icon = dashUp && kiwixUp ? "◉" : (dashUp || kiwixUp ? "◎" : "○")
+            // Keep the scope-reticle shape always; recolor to signal health.
+            let tint: NSColor? = (dashUp && kiwixUp) ? nil
+                                : (dashUp || kiwixUp) ? .systemOrange
+                                : .systemRed
 
             await MainActor.run { [weak self] in
                 guard let self else { return }
-                self.statusItem.button?.title = icon
+                self.applyScopeIcon(tint: tint)
                 self.storageItem.title  = storageText
                 self.ollamaItem.title   = ollamaText
                 self.libraryItem.title  = libraryText
